@@ -1,5 +1,3 @@
-import React from 'react'
-
 interface CardProps {
   children: React.ReactNode
   className?: string
@@ -7,15 +5,9 @@ interface CardProps {
 }
 
 export function Card({ children, className = '', padding = 'md' }: CardProps) {
-  const paddingClasses = {
-    none: '',
-    sm: 'p-4',
-    md: 'p-6',
-    lg: 'p-8'
-  }
-
+  const p = { none: '', sm: 'p-4', md: 'p-6', lg: 'p-8' }
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-200 ${paddingClasses[padding]} ${className}`}>
+    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm ${p[padding]} ${className}`}>
       {children}
     </div>
   )
@@ -23,7 +15,7 @@ export function Card({ children, className = '', padding = 'md' }: CardProps) {
 
 export function CardHeader({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`border-b border-gray-200 pb-4 mb-6 ${className}`}>
+    <div className={`border-b border-gray-100 pb-4 mb-5 ${className}`}>
       {children}
     </div>
   )
@@ -31,7 +23,7 @@ export function CardHeader({ children, className = '' }: { children: React.React
 
 export function CardTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <h3 className={`text-xl font-semibold text-gray-900 ${className}`}>
+    <h3 className={`text-lg font-semibold text-gray-900 ${className}`}>
       {children}
     </h3>
   )

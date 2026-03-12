@@ -1,9 +1,8 @@
-import React, { useState } from 'react'
-import { X, User, Mail, Phone, Key } from 'lucide-react'
+import { useState } from 'react'
+import { X, User, Mail, Phone, Key, UserPlus } from 'lucide-react'
 import { signUpTeacher } from '../../lib/auth'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../ui/Button'
-import { Input } from '../ui/Input'
 
 interface RegisterModalProps {
   isOpen: boolean
@@ -12,12 +11,7 @@ interface RegisterModalProps {
 
 export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phoneNumber: '',
-    token: '',
-    password: '',
-    confirmPassword: '',
+    name: '', email: '', phoneNumber: '', token: '', password: '', confirmPassword: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -25,29 +19,12 @@ export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (formData.password !== formData.confirmPassword) { setError('Passwords do not match'); return }
+    if (formData.password.length < 6) { setError('Password must be at least 6 characters'); return }
     setLoading(true)
     setError('')
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
-      setLoading(false)
-      return
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters')
-      setLoading(false)
-      return
-    }
-
     try {
-      await signUpTeacher(
-        formData.name,
-        formData.email,
-        formData.phoneNumber,
-        formData.token,
-        formData.password
-      )
+      await signUpTeacher(formData.name, formData.email, formData.phoneNumber, formData.token, formData.password)
       await refreshUser()
       onClose()
     } catch (err) {
@@ -57,123 +34,99 @@ export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
     }
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }))
-  }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
   if (!isOpen) return null
 
+  const field = (icon: React.ReactNode, name: string, type: string, placeholder: string) => (
+    <div className="relative">
+      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        {icon}
+      </div>
+      <input
+        name={name}
+        type={type}
+        placeholder={placeholder}
+        value={(formData as any)[name]}
+        onChange={handleChange}
+        className="input-base pl-10"
+        required
+      />
+    </div>
+  )
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Register as Educator</h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-gray-100">
+        <div className="p-6 sm:p-8">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Register as Educator</h2>
+              <p className="text-sm text-gray-500 mt-1">Create your educator account</p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <Input
-                name="name"
-                type="text"
-                placeholder="Full Name"
-                value={formData.name}
-                onChange={handleChange}
-                className="pl-10"
-                required
-              />
-            </div>
+            {field(<User className="w-4 h-4" />, 'name', 'text', 'Full Name')}
+            {field(<Mail className="w-4 h-4" />, 'email', 'email', 'Email Address')}
+            {field(<Phone className="w-4 h-4" />, 'phoneNumber', 'tel', 'Phone Number')}
 
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <Input
-                name="email"
-                type="email"
-                placeholder="Email Address"
-                value={formData.email}
-                onChange={handleChange}
-                className="pl-10"
-                required
-              />
-            </div>
-
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <Input
-                name="phoneNumber"
-                type="tel"
-                placeholder="Phone Number"
-                value={formData.phoneNumber}
-                onChange={handleChange}
-                className="pl-10"
-                required
-              />
-            </div>
-
-            <div className="relative">
-              <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <Input
+              <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+              <input
                 name="token"
                 type="text"
-                placeholder="Access Token"
+                placeholder="Institutional Access Token"
                 value={formData.token}
                 onChange={handleChange}
-                className="pl-10"
-                helper="Access token provided by institution administrator"
+                className="input-base pl-10"
                 required
               />
             </div>
+            <p className="text-xs text-gray-500 -mt-2 ml-1">Access token provided by your institution administrator</p>
 
-            <div className="relative">
-              <Input
-                name="password"
-                type="password"
-                placeholder="Password (min 6 characters)"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="relative">
-              <Input
-                name="confirmPassword"
-                type="password"
-                placeholder="Confirm Password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-              />
-            </div>
+            <input
+              name="password"
+              type="password"
+              placeholder="Password (min 6 characters)"
+              value={formData.password}
+              onChange={handleChange}
+              className="input-base"
+              required
+            />
+            <input
+              name="confirmPassword"
+              type="password"
+              placeholder="Confirm Password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className="input-base"
+              required
+            />
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
                 <p className="text-sm text-red-600">{error}</p>
               </div>
             )}
 
-            <Button type="submit" className="w-full" loading={loading}>
-              Register
+            <Button type="submit" className="w-full" size="lg" loading={loading}>
+              <UserPlus className="w-4 h-4" />
+              Create Account
             </Button>
           </form>
 
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-medium text-blue-900 mb-2">Educator Registration Process</h3>
-            <div className="text-sm text-blue-700 space-y-1">
-              <p>• Contact your institution administrator for an access token</p>
-              <p>• Access token must match your registered phone number</p>
-              <p>• Account will be activated immediately after verification</p>
-            </div>
+          <div className="mt-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+            <h3 className="text-sm font-semibold text-indigo-900 mb-2">Registration Process</h3>
+            <ul className="text-xs text-indigo-700 space-y-1">
+              <li>• Contact your institution administrator for an access token</li>
+              <li>• Access token must match your registered phone number</li>
+              <li>• Account will be activated immediately after verification</li>
+            </ul>
           </div>
         </div>
       </div>
