@@ -311,9 +311,13 @@ export async function signOut() {
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const { data: { user }, error } = await supabase.auth.getUser()
 
-  // If user token is invalid, clear the session
+  // A failed/empty getUser() here just means "no user to report" — it does
+  // NOT mean the session is bad. This runs on every auth-state-change event
+  // (see AuthContext), including right after a fresh sign-in, often racing
+  // the login form's own in-flight queries. Calling signOut() here used to
+  // rip out a session that had just been established, turning a transient
+  // getUser() hiccup into a false "user not found" on a correct login.
   if (error || !user) {
-    await supabase.auth.signOut()
     return null
   }
 
@@ -367,8 +371,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
     return null
   } catch (error) {
-    // If any database query fails, clear the session
-    await supabase.auth.signOut()
+    // Same reasoning as above — a query hiccup isn't proof the session is
+    // bad, so don't blow it away.
     return null
   }
 }
