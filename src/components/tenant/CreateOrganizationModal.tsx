@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { X, Building2, User, Mail, Lock, Link2, ArrowRight } from 'lucide-react'
+import { X, Building2, User, Mail, Lock, Link2, ArrowRight, Palette, Image } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { supabase } from '../../lib/supabase'
 import { buildSessionHandoffUrl } from '../../lib/auth'
 import { slugify, isValidSlug, isReservedSlug, orgUrl, ROOT_DOMAIN } from '../../lib/tenant'
+
+const DEFAULT_BRAND_COLOR = '#EA580C'
 
 interface CreateOrganizationModalProps {
   isOpen: boolean
@@ -17,6 +19,8 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
   const [adminName, setAdminName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
+  const [primaryColor, setPrimaryColor] = useState(DEFAULT_BRAND_COLOR)
+  const [logoUrl, setLogoUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -51,6 +55,8 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
           adminName: adminName.trim(),
           adminEmail: adminEmail.trim(),
           adminPassword,
+          primaryColor,
+          logoUrl: logoUrl.trim() || undefined,
         }),
       })
 
@@ -61,7 +67,7 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
         return
       }
 
-      const destination = orgUrl(result.org.slug)
+      const destination = `${orgUrl(result.org.slug)}?welcome=1`
 
       // Sign in now (root domain) so we have a session to hand off — the
       // org's own subdomain is a different origin and starts with none of
@@ -163,6 +169,33 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
                 minLength={6}
                 required
               />
+            </div>
+
+            <div className="border-t border-app pt-4">
+              <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Brand it as your own</p>
+              <div className="flex gap-3">
+                <div className="flex items-center gap-2 input-base pl-3 pr-2 w-auto">
+                  <Palette className="w-4 h-4 text-ink-muted shrink-0" />
+                  <input
+                    type="color"
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent p-0"
+                    title="Brand color"
+                  />
+                </div>
+                <div className="relative flex-1">
+                  <Image className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4 pointer-events-none" />
+                  <input
+                    type="url"
+                    placeholder="Logo URL (optional)"
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    className="input-base pl-10"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-ink-muted mt-1.5">Sets the accent color and logo across your whole site.</p>
             </div>
 
             {error && (

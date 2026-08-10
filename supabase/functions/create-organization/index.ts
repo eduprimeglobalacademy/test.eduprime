@@ -9,6 +9,8 @@ const corsHeaders = {
 
 const RESERVED_SLUGS = new Set(['www', 'app', 'api', 'admin', 'mail', 'default', 'assets', 'static'])
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
+const DEFAULT_BRAND_COLOR = '#EA580C'
 const TRIAL_DAYS = 14
 
 serve(async (req) => {
@@ -17,7 +19,7 @@ serve(async (req) => {
   }
 
   try {
-    const { orgName, slug, adminName, adminEmail, adminPassword } = await req.json()
+    const { orgName, slug, adminName, adminEmail, adminPassword, primaryColor, logoUrl } = await req.json()
 
     if (!orgName?.trim() || !slug?.trim() || !adminName?.trim() || !adminEmail?.trim() || !adminPassword) {
       return new Response(
@@ -26,6 +28,10 @@ serve(async (req) => {
       )
     }
 
+    const brandColor = HEX_COLOR_RE.test(primaryColor || '') ? primaryColor : DEFAULT_BRAND_COLOR
+    // Same value for both for now — a single, deliberate brand color rather
+    // than an arbitrary auto-generated pairing. Differentiating them is a
+    // job for a real branding settings screen, not a guess made at signup.
     const normalizedSlug = slug.trim().toLowerCase()
 
     if (!SLUG_RE.test(normalizedSlug) || RESERVED_SLUGS.has(normalizedSlug)) {
@@ -52,6 +58,9 @@ serve(async (req) => {
         slug: normalizedSlug,
         status: 'trial',
         trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+        primary_color: brandColor,
+        secondary_color: brandColor,
+        logo_url: typeof logoUrl === 'string' && logoUrl.trim() ? logoUrl.trim() : null,
       }])
       .select()
       .single()

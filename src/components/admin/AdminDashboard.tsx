@@ -12,6 +12,7 @@ import { UsageMeter } from '../ui/UsageMeter'
 import { BillingPanel } from './BillingPanel'
 import { OrgStatusBanner } from '../billing/OrgStatusBanner'
 import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
+import { WelcomeOnboarding } from './WelcomeOnboarding'
 
 interface TeacherToken {
   id: string; token: string; teacher_name: string; phone_number: string;
@@ -28,6 +29,7 @@ export function AdminDashboard() {
   const orgName = org?.name || 'EduPrime Global Academy'
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
   const [viewMode, setViewMode] = useState<'dashboard' | 'billing'>('dashboard')
+  const [showWelcome, setShowWelcome] = useState(() => new URLSearchParams(window.location.search).get('welcome') === '1')
   const [tokens, setTokens] = useState<TeacherToken[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
@@ -496,6 +498,17 @@ export function AdminDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {showWelcome && (
+        <WelcomeOnboarding
+          orgName={orgName}
+          slug={org?.slug}
+          onDismiss={() => {
+            setShowWelcome(false)
+            window.history.replaceState(null, '', window.location.pathname)
+          }}
+        />
       )}
     </div>
   )
