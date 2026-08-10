@@ -3,6 +3,7 @@ import { X, Save, Settings } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { ClassPicker } from './ClassPicker'
 import type { Test } from '../../lib/supabase'
 
 interface EditTestModalProps {
@@ -19,6 +20,7 @@ export function EditTestModal({ isOpen, onClose, test, onTestUpdated }: EditTest
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [classId, setClassId] = useState('')
 
   useEffect(() => {
     if (test) {
@@ -37,6 +39,7 @@ export function EditTestModal({ isOpen, onClose, test, onTestUpdated }: EditTest
         perQuestionTiming: test.per_question_timing,
         timePerQuestion: '60',
       })
+      setClassId(test.class_id || '')
     }
   }, [test])
 
@@ -51,6 +54,7 @@ export function EditTestModal({ isOpen, onClose, test, onTestUpdated }: EditTest
     try {
       const { error: updateError } = await supabase.from('tests').update({
         title: formData.title,
+        class_id: classId || null,
         description: formData.description || null,
         duration_minutes: formData.durationMinutes ? parseInt(formData.durationMinutes) : null,
         start_time: formData.startTime ? new Date(formData.startTime).toISOString() : null,
@@ -74,19 +78,20 @@ export function EditTestModal({ isOpen, onClose, test, onTestUpdated }: EditTest
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-app">
         <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Edit Assessment</h2>
-              <p className="text-sm text-gray-500 mt-1">Update assessment settings</p>
+              <h2 className="text-2xl font-bold text-ink">Edit Assessment</h2>
+              <p className="text-sm text-ink-faint mt-1">Update assessment settings</p>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400">
+            <button onClick={onClose} className="p-2 hover:bg-surface-2 rounded-xl transition-colors text-ink-muted">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <ClassPicker teacherId={test.teacher_id} value={classId} onChange={setClassId} />
             <div className="grid md:grid-cols-2 gap-4">
               <Input
                 label="Assessment Title *"
@@ -125,9 +130,9 @@ export function EditTestModal({ isOpen, onClose, test, onTestUpdated }: EditTest
               />
             </div>
 
-            <div className="rounded-xl border border-gray-100 p-4 space-y-3 bg-slate-50">
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <Settings className="w-4 h-4 text-indigo-600" />
+            <div className="rounded-xl border border-app p-4 space-y-3 bg-app">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft mb-2">
+                <Settings className="w-4 h-4 text-[var(--brand-primary)]" />
                 Settings
               </div>
               {[
@@ -140,9 +145,9 @@ export function EditTestModal({ isOpen, onClose, test, onTestUpdated }: EditTest
                     type="checkbox"
                     checked={(formData as any)[key]}
                     onChange={(e) => update(key, e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                    className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                   />
-                  <span className="text-sm text-gray-700">{label}</span>
+                  <span className="text-sm text-ink-soft">{label}</span>
                 </label>
               ))}
               {formData.perQuestionTiming && (

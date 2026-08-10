@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle, Award, Download, MinusCircle } from 'lucide-react'
+import { CheckCircle, XCircle, Download, MinusCircle } from 'lucide-react'
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { Button } from '../ui/Button'
@@ -67,26 +67,31 @@ export function TestResults({ results }: TestResultsProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4">
+    <div className="min-h-screen bg-app py-8 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Score card */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-          <div className={`inline-flex items-center justify-center w-20 h-20 rounded-2xl ${gradeInfo.bg} ring-4 ${gradeInfo.ring} mb-6`}>
-            <Award className={`w-10 h-10 ${gradeInfo.color}`} />
+        <div className="bg-surface rounded-2xl border border-app shadow-sm p-8 text-center">
+          <div
+            className="w-24 h-24 rounded-full mx-auto mb-6 flex items-center justify-center"
+            style={{ background: `conic-gradient(var(--brand-primary) ${percentage}%, var(--surface-2) 0)` }}
+          >
+            <div className="w-[76px] h-[76px] rounded-full bg-surface flex items-center justify-center">
+              <span className="font-display font-bold text-xl text-ink">{percentage}%</span>
+            </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Assessment Complete!</h1>
-          <p className="text-gray-500 text-sm mb-6">{testTitle}</p>
+          <h1 className="text-2xl font-bold text-ink mb-1">Assessment Complete!</h1>
+          <p className="text-ink-faint text-sm mb-6">{testTitle}</p>
 
           <div className="flex items-center justify-center gap-4 mb-6">
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900">{score}</div>
-              <div className="text-xs text-gray-500 mt-1">Points Earned</div>
+              <div className="text-4xl font-bold font-display text-ink">{score}</div>
+              <div className="text-xs text-ink-faint mt-1">Points Earned</div>
             </div>
-            <div className="text-3xl text-gray-200 font-light">/</div>
+            <div className="text-3xl text-ink-muted font-light">/</div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900">{maxScore}</div>
-              <div className="text-xs text-gray-500 mt-1">Total Points</div>
+              <div className="text-4xl font-bold font-display text-ink">{maxScore}</div>
+              <div className="text-xs text-ink-faint mt-1">Total Points</div>
             </div>
           </div>
 
@@ -99,15 +104,15 @@ export function TestResults({ results }: TestResultsProps) {
             <div className="flex items-center gap-1.5 text-emerald-600">
               <CheckCircle className="w-4 h-4" />
               <span className="font-medium">{correct}</span>
-              <span className="text-gray-400">correct</span>
+              <span className="text-ink-muted">correct</span>
             </div>
             <div className="flex items-center gap-1.5 text-red-500">
               <XCircle className="w-4 h-4" />
               <span className="font-medium">{incorrect}</span>
-              <span className="text-gray-400">incorrect</span>
+              <span className="text-ink-muted">incorrect</span>
             </div>
             {unanswered > 0 && (
-              <div className="flex items-center gap-1.5 text-gray-400">
+              <div className="flex items-center gap-1.5 text-ink-muted">
                 <MinusCircle className="w-4 h-4" />
                 <span className="font-medium">{unanswered}</span>
                 <span>unanswered</span>
@@ -122,38 +127,38 @@ export function TestResults({ results }: TestResultsProps) {
         </div>
 
         {/* Student info */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-surface rounded-2xl border border-app shadow-sm p-5">
           <div className="grid grid-cols-3 gap-4 text-sm">
-            <div><p className="text-xs text-gray-400 mb-1">Student</p><p className="font-medium text-gray-900">{studentName}</p></div>
-            <div><p className="text-xs text-gray-400 mb-1">Email</p><p className="font-medium text-gray-900 truncate">{studentEmail}</p></div>
-            <div><p className="text-xs text-gray-400 mb-1">Submitted</p><p className="font-medium text-gray-900">{new Date(submittedAt).toLocaleString()}</p></div>
+            <div><p className="text-xs text-ink-muted mb-1">Student</p><p className="font-medium text-ink">{studentName}</p></div>
+            <div><p className="text-xs text-ink-muted mb-1">Email</p><p className="font-medium text-ink truncate">{studentEmail}</p></div>
+            <div><p className="text-xs text-ink-muted mb-1">Submitted</p><p className="font-medium text-ink">{new Date(submittedAt).toLocaleString()}</p></div>
           </div>
         </div>
 
         {/* Detailed results */}
         {showResults && (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-gray-900">Question Review</h2>
+            <h2 className="text-xl font-bold text-ink">Question Review</h2>
             {questions.map((question, index) => {
               const isCorrect = question.selectedAnswer === question.correctAnswer
               const wasAnswered = !!question.selectedAnswer
               return (
-                <div key={question.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div key={question.id} className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
                   <div className={`px-6 py-4 flex items-start justify-between gap-4 border-b ${
-                    !wasAnswered ? 'border-gray-100 bg-gray-50' :
+                    !wasAnswered ? 'border-app bg-surface-2' :
                     isCorrect ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'
                   }`}>
                     <div className="flex items-start gap-3">
-                      {!wasAnswered ? <MinusCircle className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" /> :
+                      {!wasAnswered ? <MinusCircle className="w-5 h-5 text-ink-muted shrink-0 mt-0.5" /> :
                        isCorrect ? <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" /> :
                        <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
                       <div>
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Question {index + 1}</span>
-                        <p className="text-gray-900 font-medium mt-1">{question.question_text}</p>
+                        <span className="text-xs font-semibold text-ink-faint uppercase tracking-wide">Question {index + 1}</span>
+                        <p className="text-ink font-medium mt-1">{question.question_text}</p>
                       </div>
                     </div>
                     <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg ${
-                      isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                      isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-2 text-ink-soft'
                     }`}>
                       {isCorrect ? question.points : 0}/{question.points}
                     </span>
@@ -167,18 +172,18 @@ export function TestResults({ results }: TestResultsProps) {
                         <div key={option.id} className={`flex items-center gap-3 p-3 rounded-xl border ${
                           isCorrectOpt ? 'border-emerald-300 bg-emerald-50' :
                           isSelected && !isCorrectOpt ? 'border-red-300 bg-red-50' :
-                          'border-gray-100'
+                          'border-app'
                         }`}>
                           <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                            isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'
+                            isSelected ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]' : 'border-app-strong'
                           }`}>
-                            {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
+                            {isSelected && <div className="w-2 h-2 bg-surface rounded-full" />}
                           </div>
-                          <span className={`text-sm flex-1 ${isCorrectOpt ? 'text-emerald-800 font-medium' : isSelected ? 'text-red-800' : 'text-gray-700'}`}>
+                          <span className={`text-sm flex-1 ${isCorrectOpt ? 'text-emerald-800 font-medium' : isSelected ? 'text-red-800' : 'text-ink-soft'}`}>
                             {option.option_text}
                           </span>
                           <div className="flex gap-1.5">
-                            {isSelected && <span className="badge bg-indigo-100 text-indigo-700 text-xs">Your answer</span>}
+                            {isSelected && <span className="badge bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] text-xs">Your answer</span>}
                             {isCorrectOpt && <span className="badge bg-emerald-100 text-emerald-700 text-xs">Correct</span>}
                           </div>
                         </div>
@@ -192,9 +197,9 @@ export function TestResults({ results }: TestResultsProps) {
         )}
 
         {!showResults && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Assessment Submitted Successfully</h3>
-            <p className="text-gray-500 text-sm">Detailed results are not available for this assessment. Thank you for participating!</p>
+          <div className="bg-surface rounded-2xl border border-app shadow-sm p-8 text-center">
+            <h3 className="text-lg font-semibold text-ink mb-2">Assessment Submitted Successfully</h3>
+            <p className="text-ink-faint text-sm">Detailed results are not available for this assessment. Thank you for participating!</p>
           </div>
         )}
       </div>

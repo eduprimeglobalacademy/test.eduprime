@@ -4,9 +4,80 @@
 
 @layer base {
   :root {
-    --color-primary: 79 70 229;
-    --color-primary-dark: 67 56 202;
-    --color-accent: 124 58 237;
+    /* Fonts — Space Grotesk for headings/numbers, Manrope for everything else. */
+    --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+
+    /* Brand accent — overridden per-organization at runtime by TenantContext.
+       Default is EduPrime's own look: warm cream ground, burnt-orange accent.
+       Hover/active shades derive with color-mix() so any org color darkens
+       correctly without precomputing per-org shade variants. */
+    --brand-primary: #ea580c;
+    --brand-primary-dark: color-mix(in srgb, var(--brand-primary) 85%, black);
+    --brand-primary-darker: color-mix(in srgb, var(--brand-primary) 70%, black);
+    --brand-primary-soft: color-mix(in srgb, var(--brand-primary) 12%, white);
+    --brand-secondary: #dc2626;
+    --brand-secondary-dark: color-mix(in srgb, var(--brand-secondary) 85%, black);
+    --brand-secondary-soft: color-mix(in srgb, var(--brand-secondary) 12%, white);
+    --brand-on-primary: #ffffff;
+
+    /* Surface tokens — light/warm, the default everywhere except the
+       platform console and the student test-taking screen (.theme-dark). */
+    --bg: #fbf6ef;
+    --bg-outer: #efebe3;
+    --surface: #ffffff;
+    --surface-2: #f1ebe0;
+    --border: #e7dfd3;
+    --border-strong: #d8cfc0;
+    --ink: #1c1917;
+    --ink-soft: #57534e;
+    --ink-faint: #78716c;
+    --ink-muted: #a8a29e;
+
+    /* Status tones — same four semantic meanings everywhere; values flip
+       inside .theme-dark below. Not the brand accent — status color is
+       never white-labeled. */
+    --tone-success-bg: #dcfce7; --tone-success-ink: #166534;
+    --tone-info-bg: #dbeafe; --tone-info-ink: #1d4ed8;
+    --tone-warning-bg: #fef3c7; --tone-warning-ink: #92400e;
+    --tone-danger-bg: #fee2e2; --tone-danger-ink: #b91c1c;
+    --tone-neutral-bg: #f1ebe0; --tone-neutral-ink: #78716c;
+  }
+
+  /* Platform console + student test-taking screen: fixed dark theme, not
+     org-branded — .theme-dark intentionally overrides --brand-primary too,
+     since a platform-internal screen and a focused exam screen shouldn't
+     wear a random org's color. Everything downstream (Button, Card, Input,
+     badges) reads these same variable names, so no component needs a
+     separate dark variant — the DOM position decides which values apply. */
+  .theme-dark {
+    --brand-primary: #c6ff3d;
+    --brand-primary-dark: color-mix(in srgb, var(--brand-primary) 85%, black);
+    --brand-primary-darker: color-mix(in srgb, var(--brand-primary) 70%, black);
+    --brand-primary-soft: color-mix(in srgb, var(--brand-primary) 15%, black);
+    --brand-secondary-dark: color-mix(in srgb, var(--brand-secondary) 85%, black);
+    --brand-secondary-soft: color-mix(in srgb, var(--brand-secondary) 15%, black);
+    --brand-on-primary: #0d0f12;
+
+    --bg: #0d0f12;
+    --bg-outer: #0d0f12;
+    --surface: #16191d;
+    --surface-2: #14161a;
+    --border: #262a30;
+    --border-strong: #3a4048;
+    --ink: #f2f3f0;
+    --ink-soft: #8a919b;
+    --ink-faint: #5a616b;
+    --ink-muted: #5a616b;
+
+    --tone-success-bg: #14432a; --tone-success-ink: #86efac;
+    --tone-info-bg: #1e3a5f; --tone-info-ink: #93c5fd;
+    --tone-warning-bg: #4a2e05; --tone-warning-ink: #fcd34d;
+    --tone-danger-bg: #4a1515; --tone-danger-ink: #fca5a5;
+    --tone-neutral-bg: #33363b; --tone-neutral-ink: #b8bec7;
+
+    background: var(--bg);
+    color: var(--ink);
   }
 
   * {
@@ -14,8 +85,16 @@
   }
 
   body {
-    @apply antialiased text-gray-900 bg-slate-50;
+    @apply antialiased;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
     font-feature-settings: "cv02","cv03","cv04","cv11";
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
 
   html {
@@ -25,46 +104,83 @@
 
 @layer components {
   .card-glass {
-    @apply bg-white/80 backdrop-blur-sm border border-white/60 shadow-sm;
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    @apply backdrop-blur-sm shadow-sm;
+    border: 1px solid var(--border);
   }
 
   .gradient-text {
-    @apply bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent;
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(to right, var(--brand-primary), var(--brand-secondary));
   }
 
   .btn-primary {
-    @apply bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium rounded-xl
-           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+    color: var(--brand-on-primary);
+    @apply font-semibold rounded-lg
+           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow;
+    background-color: var(--brand-primary);
+    --tw-ring-color: var(--brand-primary);
   }
+  .btn-primary:hover { background-color: var(--brand-primary-dark); }
+  .btn-primary:active { background-color: var(--brand-primary-darker); }
 
   .btn-outline {
-    @apply border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl
-           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+    @apply font-semibold rounded-lg
+           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed shadow-sm;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--ink-soft);
+    --tw-ring-color: var(--brand-primary);
   }
+  .btn-outline:hover { border-color: var(--border-strong); background: var(--surface-2); }
 
   .input-base {
-    @apply block w-full px-3.5 py-2.5 border border-gray-200 rounded-xl bg-white
-           placeholder-gray-400 text-gray-900 text-sm
-           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-           transition-colors duration-150 shadow-sm;
+    @apply block w-full px-3.5 py-2.5 rounded-lg text-sm
+           focus:outline-none focus:ring-2 transition-colors duration-150 shadow-sm;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    --tw-ring-color: var(--brand-primary);
   }
+  .input-base::placeholder { color: var(--ink-muted); }
+  .input-base:focus { border-color: var(--brand-primary); }
 
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold;
   }
 
   .stat-card {
-    @apply bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow duration-200;
+    @apply rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow duration-200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .stat-value {
+    font-family: var(--font-display);
   }
 
   .page-header {
-    @apply bg-white border-b border-gray-100 shadow-sm;
+    @apply border-b shadow-sm;
+    background: var(--surface);
+    border-color: var(--border);
   }
 }
 
 @layer utilities {
+  .bg-app { background: var(--bg); }
+  .bg-app-outer { background: var(--bg-outer); }
+  .bg-surface { background: var(--surface); }
+  .bg-surface-2 { background: var(--surface-2); }
+  .border-app { border-color: var(--border); }
+  .border-app-strong { border-color: var(--border-strong); }
+  .text-ink { color: var(--ink); }
+  .text-ink-soft { color: var(--ink-soft); }
+  .text-ink-faint { color: var(--ink-faint); }
+  .text-ink-muted { color: var(--ink-muted); }
+  .font-display { font-family: var(--font-display); }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: #e5e7eb transparent;

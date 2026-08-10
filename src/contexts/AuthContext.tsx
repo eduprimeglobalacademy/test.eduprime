@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { getCurrentUser, signOut as authSignOut } from '../lib/auth'
 import type { AuthUser } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 
 interface AuthContextType {
   user: AuthUser | null
@@ -46,6 +47,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     refreshUser()
+
+    // Covers the OAuth redirect-back case reliably: supabase-js parses the
+    // access token out of the URL and fires SIGNED_IN, which may land
+    // after this component's first refreshUser() call already resolved
+    // with no session. Also catches token refresh and cross-tab sign-out.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      refreshUser()
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   const value = {

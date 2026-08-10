@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Clock, CheckCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useTenant } from '../../contexts/TenantContext'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import type { Test, Question, QuestionOption } from '../../lib/supabase'
 
 interface TestInterfaceProps {
   testCode: string
+  orgId?: string
   onComplete: (results: any) => void
 }
 
@@ -16,7 +18,10 @@ interface TestQuestion extends Question {
 
 type TestPhase = 'details' | 'instructions' | 'test' | 'submitting'
 
-export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
+export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProps) {
+  const { org } = useTenant()
+  const orgName = org?.name || 'EduPrime Global Academy'
+  const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
   const [test, setTest] = useState<Test | null>(null)
   const [questions, setQuestions] = useState<TestQuestion[]>([])
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -59,7 +64,9 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
 
   const fetchTest = async () => {
     try {
-      const { data: testData, error: testError } = await supabase.from('tests').select('*').eq('test_code', testCode.toUpperCase()).single()
+      let testQuery = supabase.from('tests').select('*').eq('test_code', testCode.toUpperCase())
+      if (orgId) testQuery = testQuery.eq('org_id', orgId)
+      const { data: testData, error: testError } = await testQuery.single()
       if (testError || !testData) { setError('Test not found or not available'); setLoading(false); return }
       if (testData.status !== 'live') { setError('Test is not currently active'); setLoading(false); return }
       const now = new Date()
@@ -88,8 +95,12 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
 
   const checkDuplicate = async () => {
     try {
-      const { data } = await supabase.from('test_attempts').select('id').eq('test_id', test!.id).eq('student_email', studentEmail.trim()).eq('phone_number', studentPhone.trim()).eq('is_submitted', true).maybeSingle()
-      if (data) { setDuplicateError('You have already taken this test. Each student can only take a test once.'); return }
+      const { data: alreadyAttempted } = await supabase.rpc('has_attempted', {
+        p_test_id: test!.id,
+        p_student_email: studentEmail.trim(),
+        p_phone_number: studentPhone.trim(),
+      })
+      if (alreadyAttempted) { setDuplicateError('You have already taken this test. Each student can only take a test once.'); return }
       setDuplicateError('')
       setPhase('instructions')
     } catch {
@@ -150,40 +161,44 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 
-  if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><LoadingSpinner size="lg" /></div>
+  if (loading) return <div className="theme-dark min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
 
   if (error) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm w-full max-w-md p-8 text-center">
+    <div className="theme-dark min-h-screen bg-app flex items-center justify-center p-4">
+      <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md p-8 text-center">
         <AlertCircle className="w-14 h-14 text-red-400 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Assessment Unavailable</h2>
-        <p className="text-gray-500">{error}</p>
+        <h2 className="text-xl font-bold text-ink mb-2">Assessment Unavailable</h2>
+        <p className="text-ink-faint">{error}</p>
       </div>
     </div>
   )
 
   if (phase === 'details') return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-violet-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm w-full max-w-md">
+    <div className="theme-dark min-h-screen bg-app-outer flex items-center justify-center p-4">
+      <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md">
         <div className="p-6 sm:p-8">
           <div className="mb-6 text-center">
-            <h2 className="text-xl font-bold text-gray-900">{test?.title}</h2>
-            {test?.description && <p className="text-gray-500 text-sm mt-1">{test.description}</p>}
+            <h2 className="text-xl font-bold text-ink">{test?.title}</h2>
+            {test?.description && <p className="text-ink-faint text-sm mt-1">{test.description}</p>}
           </div>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name *</label>
+              <label className="block text-sm font-medium text-ink-soft mb-1.5">Full Name *</label>
               <input type="text" value={studentName} onChange={e => setStudentName(e.target.value)} className="input-base" placeholder="Enter your full name" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address *</label>
+              <label className="block text-sm font-medium text-ink-soft mb-1.5">Email Address *</label>
               <input type="email" value={studentEmail} onChange={e => setStudentEmail(e.target.value)} className="input-base" placeholder="Enter your email address" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number *</label>
+              <label className="block text-sm font-medium text-ink-soft mb-1.5">Phone Number *</label>
               <input type="tel" value={studentPhone} onChange={e => setStudentPhone(e.target.value)} className="input-base" placeholder="Enter your phone number" />
             </div>
-            {(error || duplicateError) && <div className="p-3 bg-red-50 border border-red-100 rounded-xl"><p className="text-sm text-red-600">{error || duplicateError}</p></div>}
+            {(error || duplicateError) && (
+              <div className="p-3 rounded-xl" style={{ background: 'var(--tone-danger-bg)' }}>
+                <p className="text-sm" style={{ color: 'var(--tone-danger-ink)' }}>{error || duplicateError}</p>
+              </div>
+            )}
             <Button onClick={handleDetailsSubmit} className="w-full" size="lg">Continue</Button>
           </div>
         </div>
@@ -192,23 +207,23 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
   )
 
   if (phase === 'instructions') return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-violet-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm w-full max-w-2xl">
+    <div className="theme-dark min-h-screen bg-app-outer flex items-center justify-center p-4">
+      <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-2xl">
         <div className="p-6 sm:p-8">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">{test?.title}</h2>
-            <p className="text-gray-500 mt-1">Assessment Instructions</p>
+            <h2 className="text-2xl font-bold text-ink">{test?.title}</h2>
+            <p className="text-ink-faint mt-1">Assessment Instructions</p>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 p-4 bg-indigo-50 rounded-xl mb-6">
+          <div className="grid grid-cols-3 gap-4 p-4 bg-[var(--brand-primary-soft)] rounded-xl mb-6">
             {[
               { label: 'Questions', value: questions.length },
               { label: 'Total Points', value: questions.reduce((s, q) => s + q.points, 0) },
               { label: 'Time Limit', value: test?.per_question_timing && questions[0]?.time_limit_seconds ? `${questions[0].time_limit_seconds}s/Q` : test?.duration_minutes ? `${test.duration_minutes}m` : 'None' },
             ].map(({ label, value }) => (
               <div key={label} className="text-center">
-                <div className="text-2xl font-bold text-indigo-700">{value}</div>
-                <div className="text-xs text-indigo-600 mt-0.5">{label}</div>
+                <div className="text-2xl font-bold text-[var(--brand-primary-dark)]">{value}</div>
+                <div className="text-xs text-[var(--brand-primary)] mt-0.5">{label}</div>
               </div>
             ))}
           </div>
@@ -224,20 +239,20 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
                 : 'Click "Submit" when finished with all questions.',
             ].map((instruction, i) => (
               <div key={i} className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">{i + 1}</div>
-                <p className="text-sm text-gray-700">{instruction}</p>
+                <div className="w-6 h-6 rounded-full bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">{i + 1}</div>
+                <p className="text-sm text-ink-soft">{instruction}</p>
               </div>
             ))}
           </div>
 
-          <div className="p-4 bg-slate-50 rounded-xl border border-gray-100 mb-6">
-            <p className="text-xs font-semibold text-gray-600 mb-2">Your Details</p>
+          <div className="p-4 bg-app rounded-xl border border-app mb-6">
+            <p className="text-xs font-semibold text-ink-soft mb-2">Your Details</p>
             <div className="grid grid-cols-3 gap-2 text-sm">
-              <div><span className="text-gray-400 text-xs">Name</span><p className="font-medium text-gray-900 truncate">{studentName}</p></div>
-              <div><span className="text-gray-400 text-xs">Email</span><p className="font-medium text-gray-900 truncate">{studentEmail}</p></div>
-              <div><span className="text-gray-400 text-xs">Phone</span><p className="font-medium text-gray-900 truncate">{studentPhone}</p></div>
+              <div><span className="text-ink-muted text-xs">Name</span><p className="font-medium text-ink truncate">{studentName}</p></div>
+              <div><span className="text-ink-muted text-xs">Email</span><p className="font-medium text-ink truncate">{studentEmail}</p></div>
+              <div><span className="text-ink-muted text-xs">Phone</span><p className="font-medium text-ink truncate">{studentPhone}</p></div>
             </div>
-            <button onClick={() => setPhase('details')} className="text-indigo-600 text-xs hover:underline mt-2">Change details</button>
+            <button onClick={() => setPhase('details')} className="text-[var(--brand-primary)] text-xs hover:underline mt-2">Change details</button>
           </div>
 
           <div className="flex gap-3">
@@ -250,11 +265,11 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
   )
 
   if (phase === 'submitting') return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm w-full max-w-md p-10 text-center">
+    <div className="theme-dark min-h-screen bg-app flex items-center justify-center">
+      <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md p-10 text-center">
         <LoadingSpinner size="lg" className="mx-auto mb-5" />
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Submitting Assessment</h2>
-        <p className="text-gray-500">Please wait while we process your answers...</p>
+        <h2 className="text-xl font-bold text-ink mb-2">Submitting Assessment</h2>
+        <p className="text-ink-faint">Please wait while we process your answers...</p>
       </div>
     </div>
   )
@@ -264,37 +279,44 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
   const answered = Object.keys(answers).length
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="theme-dark min-h-screen bg-app">
       {/* Header */}
       <header className="page-header">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <img src="/eduprimelogo.jpg" alt="EduPrime" className="w-7 h-7 object-contain rounded-lg shrink-0" />
+              <img src={orgLogo} alt={orgName} className="w-7 h-7 object-contain rounded-lg shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-gray-500 hidden sm:block">EduPrime Global Academy</p>
-                <p className="text-sm font-semibold text-gray-900 truncate">{test?.title}</p>
+                <p className="text-xs text-ink-faint hidden sm:block">{orgName}</p>
+                <p className="text-sm font-semibold text-ink truncate">{test?.title}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               {test?.per_question_timing && questionTimeLeft !== null ? (
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-mono font-semibold ${questionTimeLeft < 10 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-mono font-semibold"
+                  style={questionTimeLeft < 10
+                    ? { background: 'var(--tone-danger-bg)', color: 'var(--tone-danger-ink)' }
+                    : { background: 'var(--tone-warning-bg)', color: 'var(--tone-warning-ink)' }}
+                >
                   <Clock className="w-4 h-4" />
                   {fmt(questionTimeLeft)}
                 </div>
               ) : timeLeft !== null ? (
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-mono font-semibold ${timeLeft < 60 ? 'bg-red-100 text-red-700' : timeLeft < 300 ? 'bg-amber-100 text-amber-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-mono font-semibold"
+                  style={timeLeft < 60
+                    ? { background: 'var(--tone-danger-bg)', color: 'var(--tone-danger-ink)' }
+                    : timeLeft < 300
+                      ? { background: 'var(--tone-warning-bg)', color: 'var(--tone-warning-ink)' }
+                      : { background: 'var(--brand-primary-soft)', color: 'var(--brand-primary-dark)' }}
+                >
                   <Clock className="w-4 h-4" />
                   {fmt(timeLeft)}
                 </div>
               ) : null}
-              <Button
-                onClick={handleSubmit}
-                disabled={answered === 0}
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500"
-              >
+              <Button onClick={handleSubmit} disabled={answered === 0} size="sm">
                 <CheckCircle className="w-4 h-4" />
                 Submit
               </Button>
@@ -302,8 +324,8 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
           </div>
         </div>
         {/* Progress bar */}
-        <div className="h-1 bg-gray-100">
-          <div className="h-1 bg-indigo-600 transition-all duration-300" style={{ width: `${progress}%` }} />
+        <div className="h-1 bg-surface-2">
+          <div className="h-1 bg-[var(--brand-primary)] transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
       </header>
 
@@ -311,8 +333,8 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Question nav (desktop) */}
           <div className="hidden lg:block">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sticky top-24">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Questions</p>
+            <div className="bg-surface rounded-2xl border border-app shadow-sm p-4 sticky top-24">
+              <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Questions</p>
               <div className="grid grid-cols-4 gap-1.5">
                 {questions.map((_, i) => (
                   <button
@@ -322,21 +344,22 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
                       if (test?.allow_navigation_back || i > currentQuestion) setCurrentQuestion(i)
                     }}
                     className={`w-full aspect-square rounded-lg text-xs font-semibold transition-colors ${
-                      i === currentQuestion ? 'bg-indigo-600 text-white' :
-                      answers[questions[i].id] ? 'bg-emerald-100 text-emerald-700' :
-                      'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      i === currentQuestion ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' :
+                      answers[questions[i].id] ? '' :
+                      'bg-surface-2 text-ink-faint hover:bg-surface-2'
                     }`}
+                    style={answers[questions[i].id] && i !== currentQuestion ? { background: 'var(--tone-success-bg)', color: 'var(--tone-success-ink)' } : undefined}
                   >
                     {i + 1}
                   </button>
                 ))}
               </div>
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between text-xs text-gray-500">
+              <div className="mt-4 pt-4 border-t border-app">
+                <div className="flex items-center justify-between text-xs text-ink-faint">
                   <span>Answered</span>
-                  <span className="font-semibold text-gray-900">{answered}/{questions.length}</span>
+                  <span className="font-semibold text-ink">{answered}/{questions.length}</span>
                 </div>
-                <div className="h-1.5 bg-gray-100 rounded-full mt-2">
+                <div className="h-1.5 bg-surface-2 rounded-full mt-2">
                   <div className="h-1.5 bg-emerald-500 rounded-full transition-all" style={{ width: `${(answered / questions.length) * 100}%` }} />
                 </div>
               </div>
@@ -345,13 +368,13 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
 
           {/* Question */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">
+            <div className="bg-surface rounded-2xl border border-app shadow-sm p-6 sm:p-8">
               <div className="flex items-start justify-between gap-4 mb-6">
                 <div>
-                  <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">Question {currentQuestion + 1} of {questions.length}</span>
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mt-2 leading-relaxed">{currentQ.question_text}</h2>
+                  <span className="text-xs font-semibold text-[var(--brand-primary)] uppercase tracking-wide">Question {currentQuestion + 1} of {questions.length}</span>
+                  <h2 className="text-lg sm:text-xl font-semibold text-ink mt-2 leading-relaxed">{currentQ.question_text}</h2>
                 </div>
-                <span className="shrink-0 px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-100">
+                <span className="shrink-0 px-2.5 py-1 bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] text-xs font-semibold rounded-lg border border-[var(--brand-primary-soft)]">
                   {currentQ.points} {currentQ.points === 1 ? 'pt' : 'pts'}
                 </span>
               </div>
@@ -365,8 +388,8 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
                       key={option.id}
                       className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-150 ${
                         isSelected
-                          ? 'border-indigo-500 bg-indigo-50'
-                          : 'border-gray-100 hover:border-indigo-200 hover:bg-slate-50'
+                          ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
+                          : 'border-app hover:border-[var(--brand-primary)] hover:bg-app'
                       }`}
                     >
                       <input
@@ -378,9 +401,9 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
                         className="sr-only"
                       />
                       <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${
-                        isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'
+                        isSelected ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' : 'bg-surface-2 text-ink-faint'
                       }`}>{letters[i] || i + 1}</span>
-                      <span className={`text-sm sm:text-base leading-relaxed ${isSelected ? 'text-indigo-900 font-medium' : 'text-gray-700'}`}>
+                      <span className={`text-sm sm:text-base leading-relaxed ${isSelected ? 'text-[var(--brand-primary-darker)] font-medium' : 'text-ink-soft'}`}>
                         {option.option_text}
                       </span>
                     </label>
@@ -388,7 +411,7 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
                 })}
               </div>
 
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
+              <div className="flex items-center justify-between mt-8 pt-6 border-t border-app">
                 <Button
                   variant="outline"
                   onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
@@ -405,8 +428,8 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
                       <div
                         key={qi}
                         className={`w-2 h-2 rounded-full transition-colors ${
-                          qi === currentQuestion ? 'bg-indigo-600' :
-                          answers[questions[qi]?.id] ? 'bg-emerald-400' : 'bg-gray-200'
+                          qi === currentQuestion ? 'bg-[var(--brand-primary)]' :
+                          answers[questions[qi]?.id] ? 'bg-emerald-400' : 'bg-surface-2'
                         }`}
                       />
                     )
@@ -418,11 +441,7 @@ export function TestInterface({ testCode, onComplete }: TestInterfaceProps) {
                     Next<ChevronRight className="w-4 h-4" />
                   </Button>
                 ) : (
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={answered === 0}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500"
-                  >
+                  <Button onClick={handleSubmit} disabled={answered === 0}>
                     <CheckCircle className="w-4 h-4" />Submit Assessment
                   </Button>
                 )}

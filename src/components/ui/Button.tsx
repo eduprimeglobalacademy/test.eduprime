@@ -14,13 +14,13 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const base = 'inline-flex items-center justify-center font-medium rounded-xl transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+  const base = 'inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
 
   const variants = {
-    primary: 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white focus:ring-indigo-500 shadow-sm hover:shadow',
-    secondary: 'bg-gray-600 hover:bg-gray-700 text-white focus:ring-gray-500 shadow-sm',
-    outline: 'border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-gray-700 focus:ring-indigo-500 shadow-sm',
-    ghost: 'text-gray-600 hover:bg-gray-100 focus:ring-gray-400',
+    primary: 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] active:bg-[var(--brand-primary-darker)] text-[var(--brand-on-primary)] focus:ring-[var(--brand-primary)] shadow-sm hover:shadow',
+    secondary: 'bg-[var(--ink)] hover:opacity-90 text-[var(--bg)] focus:ring-[var(--ink)] shadow-sm',
+    outline: 'border border-[var(--border)] hover:border-[var(--border-strong)] bg-[var(--surface)] hover:bg-[var(--surface-2)] text-[var(--ink-soft)] focus:ring-[var(--brand-primary)] shadow-sm',
+    ghost: 'text-[var(--ink-faint)] hover:bg-[var(--surface-2)] focus:ring-[var(--border-strong)]',
     danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 shadow-sm',
   }
 

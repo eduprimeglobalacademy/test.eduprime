@@ -59,6 +59,26 @@ serve(async (req) => {
 
     console.log('Token validated and marked as used:', updatedToken.id)
 
+    // Step 1b: the org this token belongs to must still be allowed to
+    // onboard new educators. This bypasses RLS (service role), so the
+    // same org_can_write() rule enforced at the DB level for admin-issued
+    // tokens has to be re-checked here explicitly.
+    const { data: canWrite } = await supabaseAdmin.rpc('org_can_write', { check_org_id: updatedToken.org_id })
+    if (!canWrite) {
+      await supabaseAdmin
+        .from('teacher_tokens')
+        .update({ status: 'active', used_at: null })
+        .eq('id', updatedToken.id)
+
+      return new Response(
+        JSON.stringify({ error: 'This organization\'s account is not currently active. Please contact your administrator.' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
     // Step 2: Create auth user
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,

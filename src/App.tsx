@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { TenantProvider, useTenant } from './contexts/TenantContext'
 import { LandingPage } from './components/LandingPage'
 import { AdminDashboard } from './components/admin/AdminDashboard'
 import { TeacherDashboard } from './components/teacher/TeacherDashboard'
 import { TestAccess } from './components/student/TestAccess'
 import { LoadingSpinner } from './components/ui/LoadingSpinner'
+import { OrgNotFound } from './components/tenant/OrgNotFound'
+import { RootMarketing } from './components/tenant/RootMarketing'
+import { SuperAdminConsole } from './components/superadmin/SuperAdminConsole'
+import { ImpersonationBanner } from './components/superadmin/ImpersonationBanner'
 
 function AppContent() {
   const { user, loading } = useAuth()
+  const { org, loading: tenantLoading, notFound, isRootDomain } = useTenant()
   const [currentView, setCurrentView] = useState<'landing' | 'test-access'>('landing')
 
   useEffect(() => {
@@ -26,12 +32,29 @@ function AppContent() {
     setCurrentView('test-access')
   }
 
-  if (loading) {
+  if (tenantLoading || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-app flex items-center justify-center">
         <LoadingSpinner size="lg" />
       </div>
     )
+  }
+
+  // Platform staff aren't scoped to any org — this check comes before
+  // tenant resolution matters, so the console is reachable even from an
+  // org's own subdomain or a mistyped one.
+  if (user?.role === 'platform_admin') {
+    return <SuperAdminConsole />
+  }
+
+  if (notFound) {
+    return <OrgNotFound />
+  }
+
+  // Student test access works from any host, including the root domain,
+  // so links shared before an org had its own subdomain keep working.
+  if (currentView === 'test-access') {
+    return <TestAccess onJoinTest={handleJoinTest} orgId={org?.id} />
   }
 
   // If user is authenticated, show appropriate dashboard
@@ -44,9 +67,8 @@ function AppContent() {
     }
   }
 
-  // If not authenticated, show landing page or test access
-  if (currentView === 'test-access') {
-    return <TestAccess onJoinTest={handleJoinTest} />
+  if (isRootDomain) {
+    return <RootMarketing />
   }
 
   return <LandingPage />
@@ -54,9 +76,12 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <TenantProvider>
+      <AuthProvider>
+        <ImpersonationBanner />
+        <AppContent />
+      </AuthProvider>
+    </TenantProvider>
   )
 }
 

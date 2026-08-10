@@ -3,8 +3,11 @@ import { ArrowLeft, Download, Users, BarChart3, Clock, Award, TrendingUp, Target
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import { formatDateTime, exportToCSV } from '../../lib/utils'
+import { usePlanLimits } from '../../hooks/usePlanLimits'
+import { classLabel } from '../../hooks/useClasses'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
+import { UsageMeter } from '../ui/UsageMeter'
 import type { Test, TestAttempt, StudentAnswer } from '../../lib/supabase'
 
 interface TestReportsProps {
@@ -19,6 +22,7 @@ interface AttemptWithAnswers extends TestAttempt {
 const GRADE_COLORS = ['#10B981', '#06B6D4', '#F59E0B', '#F97316', '#EF4444']
 
 export function TestReports({ testId, onBack }: TestReportsProps) {
+  const { plan } = usePlanLimits()
   const [test, setTest] = useState<Test | null>(null)
   const [attempts, setAttempts] = useState<AttemptWithAnswers[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,7 +32,7 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
 
   const fetchData = async () => {
     try {
-      const { data: testData, error: te } = await supabase.from('tests').select('*').eq('id', testId).single()
+      const { data: testData, error: te } = await supabase.from('tests').select('*, classes(id, name, course_name, grade_level)').eq('id', testId).single()
       if (te) throw te
       setTest(testData)
       const { data: attData, error: ae } = await supabase.from('test_attempts').select('*, student_answers (*)').eq('test_id', testId).eq('is_submitted', true).not('total_score', 'is', null).not('max_score', 'is', null).gt('max_score', 0).order('submitted_at', { ascending: false })
@@ -109,10 +113,10 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
     return { grade: 'F', cls: 'bg-red-100 text-red-700' }
   }
 
-  if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><LoadingSpinner size="lg" /></div>
+  if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
   if (error) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm w-full max-w-md p-8 text-center">
+    <div className="min-h-screen bg-app flex items-center justify-center p-4">
+      <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md p-8 text-center">
         <p className="text-red-600 mb-4">{error}</p>
         <Button onClick={onBack}>Go Back</Button>
       </div>
@@ -120,7 +124,7 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
   )
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-app">
       <header className="page-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -129,8 +133,11 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
                 <ArrowLeft className="w-4 h-4" />Back
               </Button>
               <div>
-                <p className="text-base font-bold text-gray-900">{test?.title}</p>
-                <p className="text-xs text-gray-500 flex items-center gap-1"><BarChart3 className="w-3 h-3" />Analytics & Reports</p>
+                <p className="text-base font-bold text-ink">{test?.title}</p>
+                <p className="text-xs text-ink-faint flex items-center gap-1">
+                  <BarChart3 className="w-3 h-3" />Analytics & Reports
+                  {test?.classes && <>· {classLabel(test.classes)}{test.classes.grade_level ? ` (${test.classes.grade_level})` : ''}</>}
+                </p>
               </div>
             </div>
             <Button onClick={exportResults} disabled={!attempts.length} variant="outline" size="sm">
@@ -142,30 +149,41 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {!attempts.length ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-            <Users className="w-14 h-14 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-gray-900 mb-2">No Submissions Yet</h3>
-            <p className="text-gray-500 text-sm">Students haven't submitted this assessment yet.</p>
+          <div className="bg-surface rounded-2xl border border-app shadow-sm p-12 text-center">
+            <Users className="w-14 h-14 text-ink-muted mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-ink mb-2">No Submissions Yet</h3>
+            <p className="text-ink-faint text-sm">Students haven't submitted this assessment yet.</p>
           </div>
         ) : (
           <div className="space-y-8">
+            {plan && (
+              <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 max-w-sm">
+                <UsageMeter
+                  label="Students on this assessment"
+                  used={attempts.length}
+                  limit={plan.max_students_per_test}
+                  unit="submitted"
+                />
+              </div>
+            )}
+
             {/* Stats */}
             {stats && (
               <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                 {[
-                  { icon: Users, color: 'bg-indigo-100 text-indigo-600', value: stats.totalAttempts, label: 'Total Attempts' },
+                  { icon: Users, color: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]', value: stats.totalAttempts, label: 'Total Attempts' },
                   { icon: TrendingUp, color: 'bg-emerald-100 text-emerald-600', value: `${stats.averageScore}%`, label: 'Average Score' },
                   { icon: Award, color: 'bg-amber-100 text-amber-600', value: `${stats.highestScore}%`, label: 'Highest Score' },
                   { icon: Target, color: 'bg-red-100 text-red-600', value: `${stats.lowestScore}%`, label: 'Lowest Score' },
-                  { icon: BarChart3, color: 'bg-violet-100 text-violet-600', value: `${stats.passRate}%`, label: 'Pass Rate (≥60%)' },
+                  { icon: BarChart3, color: 'bg-[var(--brand-secondary-soft)] text-[var(--brand-secondary)]', value: `${stats.passRate}%`, label: 'Pass Rate (≥60%)' },
                   { icon: Clock, color: 'bg-blue-100 text-blue-600', value: `${stats.averageTime}m`, label: 'Avg Time' },
                 ].map(({ icon: Icon, color, value, label }) => (
-                  <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
+                  <div key={label} className="bg-surface rounded-2xl border border-app shadow-sm p-5 text-center">
                     <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl mb-3 ${color}`}>
                       <Icon className="w-5 h-5" />
                     </div>
-                    <div className="text-2xl font-bold text-gray-900">{value}</div>
-                    <div className="text-xs text-gray-500 mt-1">{label}</div>
+                    <div className="text-2xl font-bold font-display text-ink">{value}</div>
+                    <div className="text-xs text-ink-faint mt-1">{label}</div>
                   </div>
                 ))}
               </div>
@@ -175,8 +193,8 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
             {(gradeDistribution.length > 0 || scoreDistribution.length > 0) && (
               <div className="grid lg:grid-cols-2 gap-6">
                 {gradeDistribution.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                    <h3 className="text-base font-semibold text-gray-900 mb-5">Grade Distribution</h3>
+                  <div className="bg-surface rounded-2xl border border-app shadow-sm p-6">
+                    <h3 className="text-base font-semibold text-ink mb-5">Grade Distribution</h3>
                     <ResponsiveContainer width="100%" height={260}>
                       <PieChart>
                         <Pie data={gradeDistribution} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${name.split(' ')[0]}: ${(percent * 100).toFixed(0)}%`}>
@@ -188,8 +206,8 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
                   </div>
                 )}
                 {scoreDistribution.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                    <h3 className="text-base font-semibold text-gray-900 mb-5">Score Distribution</h3>
+                  <div className="bg-surface rounded-2xl border border-app shadow-sm p-6">
+                    <h3 className="text-base font-semibold text-ink mb-5">Score Distribution</h3>
                     <ResponsiveContainer width="100%" height={260}>
                       <BarChart data={scoreDistribution}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -205,45 +223,45 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
             )}
 
             {/* Table */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-gray-100">
-                <h3 className="text-base font-semibold text-gray-900">Individual Results</h3>
+            <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-app">
+                <h3 className="text-base font-semibold text-ink">Individual Results</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-gray-100">
+                    <tr className="bg-app border-b border-app">
                       {['Learner', 'Score', 'Percentage', 'Grade', 'Time Taken', 'Submitted'].map(h => (
-                        <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                        <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-ink-faint uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-app">
                     {attempts.map(a => {
                       const pct = a.max_score > 0 ? Math.round(((a.total_score || 0) / a.max_score) * 100) : 0
                       const { grade, cls } = getGrade(pct, test?.grading_config)
                       return (
-                        <tr key={a.id} className="hover:bg-slate-50 transition-colors">
+                        <tr key={a.id} className="hover:bg-app transition-colors">
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-semibold text-indigo-700 shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-[var(--brand-primary-soft)] flex items-center justify-center text-xs font-semibold text-[var(--brand-primary-dark)] shrink-0">
                                 {a.student_name?.charAt(0)?.toUpperCase() || '?'}
                               </div>
                               <div>
-                                <p className="font-medium text-gray-900">{a.student_name || 'Anonymous'}</p>
-                                {a.student_email && <p className="text-xs text-gray-400">{a.student_email}</p>}
+                                <p className="font-medium text-ink">{a.student_name || 'Anonymous'}</p>
+                                {a.student_email && <p className="text-xs text-ink-muted">{a.student_email}</p>}
                               </div>
                             </div>
                           </td>
-                          <td className="px-5 py-4 text-gray-900 font-medium">{a.total_score || 0}/{a.max_score || 0}</td>
-                          <td className="px-5 py-4 font-semibold text-gray-900">{pct}%</td>
+                          <td className="px-5 py-4 text-ink font-medium">{a.total_score || 0}/{a.max_score || 0}</td>
+                          <td className="px-5 py-4 font-semibold text-ink">{pct}%</td>
                           <td className="px-5 py-4">
                             <span className={`badge ${cls} font-semibold`}>{grade}</span>
                           </td>
-                          <td className="px-5 py-4 text-gray-600">
+                          <td className="px-5 py-4 text-ink-soft">
                             {a.time_taken_seconds ? `${Math.floor(a.time_taken_seconds / 60)}:${(a.time_taken_seconds % 60).toString().padStart(2, '0')}` : '—'}
                           </td>
-                          <td className="px-5 py-4 text-gray-600">{a.submitted_at ? formatDateTime(a.submitted_at) : '—'}</td>
+                          <td className="px-5 py-4 text-ink-soft">{a.submitted_at ? formatDateTime(a.submitted_at) : '—'}</td>
                         </tr>
                       )
                     })}

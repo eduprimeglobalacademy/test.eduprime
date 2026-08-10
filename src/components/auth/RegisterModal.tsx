@@ -41,7 +41,7 @@ export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
 
   const field = (icon: React.ReactNode, name: string, type: string, placeholder: string) => (
     <div className="relative">
-      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none">
         {icon}
       </div>
       <input
@@ -58,14 +58,14 @@ export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-gray-100">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-app">
         <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Register as Educator</h2>
-              <p className="text-sm text-gray-500 mt-1">Create your educator account</p>
+              <h2 className="text-2xl font-bold text-ink">Register as Educator</h2>
+              <p className="text-sm text-ink-faint mt-1">Create your educator account</p>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
+            <button onClick={onClose} className="p-2 hover:bg-surface-2 rounded-xl transition-colors text-ink-muted hover:text-ink-soft">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -76,7 +76,7 @@ export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
             {field(<Phone className="w-4 h-4" />, 'phoneNumber', 'tel', 'Phone Number')}
 
             <div className="relative">
-              <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+              <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4 pointer-events-none" />
               <input
                 name="token"
                 type="text"
@@ -87,7 +87,7 @@ export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
                 required
               />
             </div>
-            <p className="text-xs text-gray-500 -mt-2 ml-1">Access token provided by your institution administrator</p>
+            <p className="text-xs text-ink-faint -mt-2 ml-1">Access token provided by your institution administrator</p>
 
             <input
               name="password"
@@ -120,9 +120,9 @@ export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
             </Button>
           </form>
 
-          <div className="mt-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-            <h3 className="text-sm font-semibold text-indigo-900 mb-2">Registration Process</h3>
-            <ul className="text-xs text-indigo-700 space-y-1">
+          <div className="mt-6 p-4 bg-[var(--brand-primary-soft)] rounded-xl border border-[var(--brand-primary-soft)]">
+            <h3 className="text-sm font-semibold text-[var(--brand-primary-darker)] mb-2">Registration Process</h3>
+            <ul className="text-xs text-[var(--brand-primary-dark)] space-y-1">
               <li>• Contact your institution administrator for an access token</li>
               <li>• Access token must match your registered phone number</li>
               <li>• Account will be activated immediately after verification</li>

@@ -3,6 +3,7 @@ import { X, ChevronRight, ChevronLeft, Plus, Settings, GraduationCap } from 'luc
 import { supabase } from '../../lib/supabase'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { ClassPicker } from './ClassPicker'
 
 interface CreateTestWizardProps {
   isOpen: boolean
@@ -17,6 +18,7 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
   const [step, setStep] = useState<Step>(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [classId, setClassId] = useState('')
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -64,6 +66,7 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
       }
       const { error: createError } = await supabase.from('tests').insert([{
         teacher_id: teacherId,
+        class_id: classId || null,
         title: formData.title,
         description: formData.description || null,
         test_code: testCode,
@@ -80,7 +83,10 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
       onTestCreated()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create assessment')
+      const code = (err && typeof err === 'object' && 'code' in err) ? (err as { code: string }).code : undefined
+      setError(code === '42501'
+        ? 'New assessments are paused for this organization until billing is resolved. Contact your administrator.'
+        : err instanceof Error ? err.message : 'Failed to create assessment')
     } finally {
       setLoading(false)
     }
@@ -96,20 +102,20 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-app">
         <div className="p-6 sm:p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-100 rounded-xl">
-                <Plus className="w-5 h-5 text-indigo-600" />
+              <div className="p-2 bg-[var(--brand-primary-soft)] rounded-xl">
+                <Plus className="w-5 h-5 text-[var(--brand-primary)]" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Create Assessment</h2>
-                <p className="text-xs text-gray-500">{steps.find(s => s.num === step)?.label}</p>
+                <h2 className="text-xl font-bold text-ink">Create Assessment</h2>
+                <p className="text-xs text-ink-faint">{steps.find(s => s.num === step)?.label}</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400">
+            <button onClick={onClose} className="p-2 hover:bg-surface-2 rounded-xl transition-colors text-ink-muted">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -121,15 +127,15 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
                 <div className="flex items-center gap-2">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
                     num < step ? 'bg-emerald-500 text-white' :
-                    num === step ? 'bg-indigo-600 text-white' :
-                    'bg-gray-100 text-gray-400'
+                    num === step ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' :
+                    'bg-surface-2 text-ink-muted'
                   }`}>
                     {num < step ? '✓' : num}
                   </div>
-                  <span className={`text-xs font-medium hidden sm:block ${num === step ? 'text-indigo-600' : 'text-gray-400'}`}>{label}</span>
+                  <span className={`text-xs font-medium hidden sm:block ${num === step ? 'text-[var(--brand-primary)]' : 'text-ink-muted'}`}>{label}</span>
                 </div>
                 {i < steps.length - 1 && (
-                  <div className={`flex-1 h-0.5 mx-3 rounded ${num < step ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+                  <div className={`flex-1 h-0.5 mx-3 rounded ${num < step ? 'bg-emerald-400' : 'bg-surface-2'}`} />
                 )}
               </div>
             ))}
@@ -138,6 +144,7 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
           {/* Step 1: Basic Info */}
           {step === 1 && (
             <div className="space-y-5">
+              <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
               <Input
                 label="Assessment Title *"
                 placeholder="e.g. Midterm Mathematics Exam"
@@ -181,45 +188,45 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
           {/* Step 2: Settings */}
           {step === 2 && (
             <div className="space-y-4">
-              <div className="p-4 bg-slate-50 rounded-xl border border-gray-100 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Settings className="w-4 h-4 text-indigo-600" />
+              <div className="p-4 bg-app rounded-xl border border-app space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+                  <Settings className="w-4 h-4 text-[var(--brand-primary)]" />
                   Assessment Behavior
                 </div>
                 {[
                   { key: 'showResults', label: 'Show results to students after submission', desc: 'Students will see their score, grade, and question review' },
                   { key: 'allowNavigationBack', label: 'Allow backward navigation', desc: 'Students can go back to previous questions during the test' },
                 ].map(({ key, label, desc }) => (
-                  <label key={key} className="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white transition-colors">
+                  <label key={key} className="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-surface transition-colors">
                     <input
                       type="checkbox"
                       checked={(formData as any)[key]}
                       onChange={(e) => update(key, e.target.checked)}
-                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                      className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
                     />
                     <div>
-                      <p className="text-sm font-medium text-gray-700">{label}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                      <p className="text-sm font-medium text-ink-soft">{label}</p>
+                      <p className="text-xs text-ink-faint mt-0.5">{desc}</p>
                     </div>
                   </label>
                 ))}
               </div>
 
-              <div className="p-4 bg-slate-50 rounded-xl border border-gray-100 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Settings className="w-4 h-4 text-violet-600" />
+              <div className="p-4 bg-app rounded-xl border border-app space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+                  <Settings className="w-4 h-4 text-[var(--brand-secondary)]" />
                   Timing Mode
                 </div>
-                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white transition-colors">
+                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-surface transition-colors">
                   <input
                     type="checkbox"
                     checked={formData.perQuestionTiming}
                     onChange={(e) => update('perQuestionTiming', e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 mt-0.5"
+                    className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
                   />
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Per-question timing</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Each question has its own timer. Questions auto-advance when time expires.</p>
+                    <p className="text-sm font-medium text-ink-soft">Per-question timing</p>
+                    <p className="text-xs text-ink-faint mt-0.5">Each question has its own timer. Questions auto-advance when time expires.</p>
                   </div>
                 </label>
                 {formData.perQuestionTiming && (
@@ -240,8 +247,8 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
           {/* Step 3: Grading */}
           {step === 3 && (
             <div className="space-y-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                <GraduationCap className="w-4 h-4 text-indigo-600" />
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft mb-2">
+                <GraduationCap className="w-4 h-4 text-[var(--brand-primary)]" />
                 Grade Boundaries (%)
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -251,7 +258,7 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
                   { key: 'cGrade', label: 'C Grade minimum (%)', bg: 'bg-amber-50' },
                   { key: 'dGrade', label: 'D Grade minimum (%)', bg: 'bg-orange-50' },
                 ].map(({ key, label, bg }) => (
-                  <div key={key} className={`p-4 rounded-xl ${bg} border border-gray-100`}>
+                  <div key={key} className={`p-4 rounded-xl ${bg} border border-app`}>
                     <Input
                       label={label}
                       type="number"
@@ -273,8 +280,8 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
                 helper="Scores below this are considered failing (F)"
               />
 
-              <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                <p className="text-sm font-semibold text-indigo-800 mb-3">Grade Preview:</p>
+              <div className="p-4 bg-[var(--brand-primary-soft)] rounded-xl border border-[var(--brand-primary-soft)]">
+                <p className="text-sm font-semibold text-[var(--brand-primary-darker)] mb-3">Grade Preview:</p>
                 <div className="grid grid-cols-5 gap-2 text-center text-xs">
                   {[
                     { grade: 'A', min: formData.aGrade, cls: 'bg-emerald-100 text-emerald-700' },
@@ -300,7 +307,7 @@ export function CreateTestWizard({ isOpen, onClose, teacherId, onTestCreated }: 
           )}
 
           {/* Navigation */}
-          <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mt-8 pt-6 border-t border-app">
             <Button variant="outline" onClick={() => step > 1 ? setStep((step - 1) as Step) : onClose()} disabled={loading}>
               <ChevronLeft className="w-4 h-4" />
               {step === 1 ? 'Cancel' : 'Back'}

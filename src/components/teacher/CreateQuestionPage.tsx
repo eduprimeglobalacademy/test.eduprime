@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Plus, Trash2, Save, Upload, Download, AlertCircle, GripVertical } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, Upload, Download, AlertCircle, GripVertical, BookMarked, Library } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useQuestionBank } from '../../hooks/useQuestionBank'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
+import { QuestionBankPicker } from './QuestionBankPicker'
 
 interface CreateQuestionPageProps {
   testId: string
@@ -35,16 +37,20 @@ export function CreateQuestionPage({ testId, onBack, onQuestionsUpdated }: Creat
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [testTitle, setTestTitle] = useState('')
+  const [teacherId, setTeacherId] = useState('')
   const [bulkText, setBulkText] = useState('')
   const [showBulkInput, setShowBulkInput] = useState(false)
+  const [showBankPicker, setShowBankPicker] = useState(false)
+  const [savingToBank, setSavingToBank] = useState<string | null>(null)
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
+  const { items: bankItems, saveToBank, deleteFromBank } = useQuestionBank(teacherId)
 
   useEffect(() => { fetchData() }, [testId])
 
   const fetchData = async () => {
     try {
-      const { data: testData } = await supabase.from('tests').select('title').eq('id', testId).single()
-      if (testData) setTestTitle(testData.title)
+      const { data: testData } = await supabase.from('tests').select('title, teacher_id').eq('id', testId).single()
+      if (testData) { setTestTitle(testData.title); setTeacherId(testData.teacher_id) }
       const { data: qData, error: qError } = await supabase.from('questions').select('*, question_options (*)').eq('test_id', testId).order('question_order')
       if (qError) throw qError
       setQuestions((qData || []).map(q => ({
@@ -168,6 +174,50 @@ export function CreateQuestionPage({ testId, onBack, onQuestionsUpdated }: Creat
     }
   }
 
+  const saveQuestionToBank = async (question: Question) => {
+    if (!question.question_text.trim() || question.options.length < 2) {
+      setError('Add question text and at least 2 options before saving to the bank')
+      return
+    }
+    setSavingToBank(question.id)
+    try {
+      await saveToBank({
+        teacherId,
+        questionText: question.question_text,
+        points: question.points,
+        options: question.options.map((o, i) => ({ option_text: o.option_text, is_correct: o.is_correct, option_order: i + 1 })),
+      })
+      setSuccess('Saved to question bank')
+      setTimeout(() => setSuccess(''), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save to bank')
+    } finally {
+      setSavingToBank(null)
+    }
+  }
+
+  const importFromBank = (bankItemIds: string[]) => {
+    const toImport = bankItems.filter(b => bankItemIds.includes(b.id))
+    const newQuestions: Question[] = toImport.map((b, i) => ({
+      id: `new-${Date.now()}-${i}`,
+      question_text: b.question_text,
+      question_order: questions.length + i + 1,
+      points: b.points,
+      time_limit_seconds: null,
+      isNew: true,
+      options: (b.options || []).map((o, oi) => ({
+        id: `opt-${Date.now()}-${i}-${oi}`,
+        option_text: o.option_text,
+        is_correct: o.is_correct,
+        option_order: oi + 1,
+      })),
+    }))
+    setQuestions(prev => [...prev, ...newQuestions])
+    setShowBankPicker(false)
+    setSuccess(`${newQuestions.length} question(s) added from bank`)
+    setTimeout(() => setSuccess(''), 3000)
+  }
+
   const downloadTemplate = () => {
     const tmpl = `1. What is 2 + 2?
 A. 3
@@ -227,12 +277,12 @@ Note: Mark correct answers with * or put correct answer first (A.)
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><LoadingSpinner size="lg" /></div>
+  if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
 
   const letters = ['A', 'B', 'C', 'D', 'E', 'F']
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-app">
       {/* Header */}
       <header className="page-header sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -242,11 +292,15 @@ Note: Mark correct answers with * or put correct answer first (A.)
                 <ArrowLeft className="w-4 h-4" />Back
               </Button>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{testTitle}</p>
-                <p className="text-xs text-gray-500">{questions.length} question{questions.length !== 1 ? 's' : ''}</p>
+                <p className="text-sm font-semibold text-ink truncate">{testTitle}</p>
+                <p className="text-xs text-ink-faint">{questions.length} question{questions.length !== 1 ? 's' : ''}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setShowBankPicker(true)}>
+                <Library className="w-4 h-4" />
+                <span className="hidden sm:inline">From Bank</span>
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowBulkInput(!showBulkInput)}>
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">Bulk Import</span>
@@ -279,9 +333,9 @@ Note: Mark correct answers with * or put correct answer first (A.)
 
         {/* Bulk Import */}
         {showBulkInput && (
-          <div className="mb-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-2">Bulk Import Questions</h3>
-            <p className="text-xs text-gray-500 mb-4">
+          <div className="mb-6 bg-surface rounded-2xl border border-app shadow-sm p-6">
+            <h3 className="text-base font-semibold text-ink mb-2">Bulk Import Questions</h3>
+            <p className="text-xs text-ink-faint mb-4">
               Format: "1. Question text" followed by "A. Option" lines. Mark correct answers with * or first option (A.) is assumed correct.
             </p>
             <textarea
@@ -302,33 +356,33 @@ Note: Mark correct answers with * or put correct answer first (A.)
           {questions.map((question, qi) => {
             const isExpanded = expandedQuestion === question.id
             return (
-              <div key={question.id} id={`q-${question.id}`} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div key={question.id} id={`q-${question.id}`} className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
                 {/* Question header (collapsed) */}
                 <button
                   onClick={() => setExpandedQuestion(isExpanded ? null : question.id)}
-                  className="w-full flex items-center gap-4 px-5 sm:px-6 py-4 hover:bg-gray-50 transition-colors text-left"
+                  className="w-full flex items-center gap-4 px-5 sm:px-6 py-4 hover:bg-surface-2 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <GripVertical className="w-4 h-4 text-gray-300 shrink-0" />
-                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
+                    <GripVertical className="w-4 h-4 text-ink-muted shrink-0" />
+                    <div className="w-7 h-7 rounded-lg bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] flex items-center justify-center text-xs font-bold shrink-0">
                       {qi + 1}
                     </div>
-                    <p className={`text-sm font-medium truncate ${question.question_text ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+                    <p className={`text-sm font-medium truncate ${question.question_text ? 'text-ink' : 'text-ink-muted italic'}`}>
                       {question.question_text || 'New Question'}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-gray-500 hidden sm:block">{question.points} pt{question.points !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-ink-faint hidden sm:block">{question.points} pt{question.points !== 1 ? 's' : ''}</span>
                     <span className={`text-xs transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
                   </div>
                 </button>
 
                 {/* Question expanded */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 px-5 sm:px-6 py-6 space-y-5">
+                  <div className="border-t border-app px-5 sm:px-6 py-6 space-y-5">
                     <div className="grid sm:grid-cols-3 gap-4">
                       <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Question Text *</label>
+                        <label className="block text-sm font-medium text-ink-soft mb-1.5">Question Text *</label>
                         <textarea
                           value={question.question_text}
                           onChange={(e) => updateQuestion(question.id, 'question_text', e.target.value)}
@@ -358,12 +412,12 @@ Note: Mark correct answers with * or put correct answer first (A.)
 
                     {/* Options */}
                     <div>
-                      <p className="text-sm font-medium text-gray-700 mb-3">Answer Options *</p>
+                      <p className="text-sm font-medium text-ink-soft mb-3">Answer Options *</p>
                       <div className="space-y-2.5">
                         {question.options.map((opt, oi) => (
-                          <div key={opt.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-colors ${opt.is_correct ? 'border-emerald-300 bg-emerald-50' : 'border-gray-100'}`}>
+                          <div key={opt.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-colors ${opt.is_correct ? 'border-emerald-300 bg-emerald-50' : 'border-app'}`}>
                             <div className="flex items-center gap-2 shrink-0">
-                              <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold ${opt.is_correct ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                              <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold ${opt.is_correct ? 'bg-emerald-500 text-white' : 'bg-surface-2 text-ink-faint'}`}>
                                 {letters[oi]}
                               </span>
                               <input
@@ -380,10 +434,10 @@ Note: Mark correct answers with * or put correct answer first (A.)
                               value={opt.option_text}
                               onChange={(e) => updateOption(question.id, opt.id, 'option_text', e.target.value)}
                               placeholder={`Option ${letters[oi]}`}
-                              className="flex-1 text-sm border-0 bg-transparent focus:outline-none text-gray-900 placeholder-gray-400"
+                              className="flex-1 text-sm border-0 bg-transparent focus:outline-none text-ink placeholder-[var(--ink-muted)]"
                             />
                             {question.options.length > 2 && (
-                              <button onClick={() => removeOption(question.id, opt.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors shrink-0">
+                              <button onClick={() => removeOption(question.id, opt.id)} className="p-1 text-ink-muted hover:text-red-500 transition-colors shrink-0">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             )}
@@ -395,15 +449,22 @@ Note: Mark correct answers with * or put correct answer first (A.)
                         <button
                           onClick={() => addOption(question.id)}
                           disabled={question.options.length >= 6}
-                          className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="text-sm text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Plus className="w-4 h-4" />Add Option
                         </button>
-                        <p className="text-xs text-gray-400">Select radio button to mark correct answer</p>
+                        <p className="text-xs text-ink-muted">Select radio button to mark correct answer</p>
                       </div>
                     </div>
 
-                    <div className="flex justify-end pt-2 border-t border-gray-100">
+                    <div className="flex justify-end gap-2 pt-2 border-t border-app">
+                      <Button
+                        variant="outline" size="sm"
+                        onClick={() => saveQuestionToBank(question)}
+                        loading={savingToBank === question.id}
+                      >
+                        <BookMarked className="w-3.5 h-3.5" />Save to Bank
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => removeQuestion(question.id)} className="text-red-500 border-red-200 hover:bg-red-50">
                         <Trash2 className="w-3.5 h-3.5" />Delete Question
                       </Button>
@@ -418,7 +479,7 @@ Note: Mark correct answers with * or put correct answer first (A.)
         {/* Add question button */}
         <button
           onClick={addQuestion}
-          className="mt-4 w-full p-5 rounded-2xl border-2 border-dashed border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all text-gray-400 hover:text-indigo-600 flex items-center justify-center gap-2"
+          className="mt-4 w-full p-5 rounded-2xl border-2 border-dashed border-app hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary-soft)] transition-all text-ink-muted hover:text-[var(--brand-primary)] flex items-center justify-center gap-2"
         >
           <Plus className="w-5 h-5" />
           <span className="font-medium">Add Question</span>
@@ -434,10 +495,10 @@ Note: Mark correct answers with * or put correct answer first (A.)
         )}
 
         {questions.length === 0 && (
-          <div className="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-            <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Questions Yet</h3>
-            <p className="text-gray-500 text-sm mb-4">Add questions manually or use bulk import</p>
+          <div className="mt-4 bg-surface rounded-2xl border border-app shadow-sm p-12 text-center">
+            <AlertCircle className="w-12 h-12 text-ink-muted mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-ink mb-2">No Questions Yet</h3>
+            <p className="text-ink-faint text-sm mb-4">Add questions manually or use bulk import</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button onClick={addQuestion}>
                 <Plus className="w-4 h-4" />Add First Question
@@ -449,6 +510,14 @@ Note: Mark correct answers with * or put correct answer first (A.)
           </div>
         )}
       </div>
+
+      <QuestionBankPicker
+        isOpen={showBankPicker}
+        items={bankItems}
+        onClose={() => setShowBankPicker(false)}
+        onImport={importFromBank}
+        onDelete={deleteFromBank}
+      />
     </div>
   )
 }

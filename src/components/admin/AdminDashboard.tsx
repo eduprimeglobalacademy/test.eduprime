@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield } from 'lucide-react'
+import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, CreditCard, ArrowLeft } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTenant } from '../../contexts/TenantContext'
+import { usePlanLimits } from '../../hooks/usePlanLimits'
 import { Button } from '../ui/Button'
 import { Card, CardHeader, CardTitle } from '../ui/Card'
 import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
+import { UsageMeter } from '../ui/UsageMeter'
+import { BillingPanel } from './BillingPanel'
+import { OrgStatusBanner } from '../billing/OrgStatusBanner'
+import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
 
 interface TeacherToken {
   id: string; token: string; teacher_name: string; phone_number: string;
@@ -17,6 +23,11 @@ interface Teacher {
 
 export function AdminDashboard() {
   const { user, signOut } = useAuth()
+  const { org } = useTenant()
+  const { plan } = usePlanLimits()
+  const orgName = org?.name || 'EduPrime Global Academy'
+  const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
+  const [viewMode, setViewMode] = useState<'dashboard' | 'billing'>('dashboard')
   const [tokens, setTokens] = useState<TeacherToken[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,6 +39,7 @@ export function AdminDashboard() {
   const [tokenSearch, setTokenSearch] = useState('')
   const [tokenFilter, setTokenFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all')
   const [newToken, setNewToken] = useState({ teacher_name: '', phone_number: '' })
+  const [tokenError, setTokenError] = useState('')
   const [deletingTokens, setDeletingTokens] = useState<string[]>([])
   const [showDeleteExpiredModal, setShowDeleteExpiredModal] = useState(false)
 
@@ -66,6 +78,7 @@ export function AdminDashboard() {
   const createToken = async () => {
     if (!newToken.teacher_name.trim() || !newToken.phone_number.trim()) return
     setCreating(true)
+    setTokenError('')
     try {
       const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
       const { error } = await supabase.from('teacher_tokens').insert([{ token, teacher_name: newToken.teacher_name.trim(), phone_number: newToken.phone_number.trim(), created_by: user?.id }])
@@ -74,6 +87,10 @@ export function AdminDashboard() {
       await fetchData()
     } catch (error) {
       console.error('Error creating token:', error)
+      const code = (error && typeof error === 'object' && 'code' in error) ? (error as { code: string }).code : undefined
+      setTokenError(code === '42501'
+        ? 'New educator tokens are paused for this organization until billing is resolved.'
+        : 'Failed to create token. Please try again.')
     } finally {
       setCreating(false)
     }
@@ -136,7 +153,7 @@ export function AdminDashboard() {
   const getTokenStatus = (token: TeacherToken) => {
     if (token.status === 'used') return { label: 'Used', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
     if (new Date(token.expires_at) <= new Date()) return { label: 'Expired', cls: 'bg-red-50 text-red-700 border-red-200' }
-    return { label: 'Active', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
+    return { label: 'Active', cls: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] border-[var(--brand-primary-soft)]' }
   }
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -156,31 +173,45 @@ export function AdminDashboard() {
     return true
   })
 
-  if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><LoadingSpinner size="lg" /></div>
+  if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
 
   const stats = getTokenStats()
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-app">
       {/* Header */}
       <header className="page-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3 min-w-0">
-              <img src="/eduprimelogo.jpg" alt="EduPrime" className="w-8 h-8 object-contain rounded-lg shrink-0" />
+              <img src={orgLogo} alt={orgName} className="w-8 h-8 object-contain rounded-lg shrink-0" />
               <div className="min-w-0">
-                <h1 className="text-base sm:text-lg font-bold gradient-text truncate">EduPrime Global Academy</h1>
-                <p className="text-xs text-gray-500 flex items-center gap-1">
+                <h1 className="text-base sm:text-lg font-bold gradient-text truncate">{orgName}</h1>
+                <p className="text-xs text-ink-faint flex items-center gap-1">
                   <Shield className="w-3 h-3" />Administrator
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
-              <Button variant="outline" onClick={() => { setRefreshing(true); fetchData() }} disabled={refreshing} size="sm">
-                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
-              </Button>
-              <span className="text-sm text-gray-600 hidden md:block">Welcome, {user?.name}</span>
+              {viewMode === 'dashboard' ? (
+                <>
+                  <Button variant="outline" onClick={() => setViewMode('billing')} size="sm">
+                    <CreditCard className="w-4 h-4" />
+                    <span className="hidden sm:inline">Billing</span>
+                  </Button>
+                  <Button variant="outline" onClick={() => { setRefreshing(true); fetchData() }} disabled={refreshing} size="sm">
+                    <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" onClick={() => setViewMode('dashboard')} size="sm">
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Back</span>
+                </Button>
+              )}
+              <ConnectGoogleButton />
+              <span className="text-sm text-ink-soft hidden md:block">Welcome, {user?.name}</span>
               <Button variant="outline" size="sm" onClick={() => signOut()}>
                 <LogOut className="w-4 h-4" />
                 <span className="hidden sm:inline">Sign Out</span>
@@ -190,26 +221,41 @@ export function AdminDashboard() {
         </div>
       </header>
 
+      {viewMode === 'billing' ? (
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-ink">Billing</h2>
+            <p className="text-ink-faint mt-1">Manage your organization's plan and subscription</p>
+          </div>
+          <BillingPanel />
+        </div>
+      ) : (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Educator Management</h2>
-          <p className="text-gray-500 mt-1">Manage educator access tokens and registered accounts</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-ink">Educator Management</h2>
+          <p className="text-ink-faint mt-1">Manage educator access tokens and registered accounts</p>
         </div>
+
+        {org && (org.status === 'past_due' || org.status === 'suspended') && (
+          <div className="mb-8">
+            <OrgStatusBanner org={org} />
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Active Tokens', value: stats.activeTokens, icon: Key, color: 'bg-indigo-100 text-indigo-600' },
+            { label: 'Active Tokens', value: stats.activeTokens, icon: Key, color: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' },
             { label: 'Used Tokens', value: stats.usedTokens, icon: CheckCircle, color: 'bg-emerald-100 text-emerald-600' },
             { label: 'Expired', value: stats.expiredTokens, icon: XCircle, color: 'bg-red-100 text-red-600' },
-            { label: 'Educators', value: teachers.length, icon: Users, color: 'bg-violet-100 text-violet-600' },
+            { label: 'Educators', value: teachers.length, icon: Users, color: 'bg-[var(--brand-secondary-soft)] text-[var(--brand-secondary)]' },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="stat-card">
               <div className="flex items-center gap-3">
                 <div className={`p-2.5 rounded-xl ${color}`}><Icon className="w-5 h-5" /></div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium">{label}</p>
-                  <p className="text-2xl font-bold text-gray-900">{value}</p>
+                  <p className="text-xs text-ink-faint font-medium">{label}</p>
+                  <p className="text-2xl font-bold font-display text-ink">{value}</p>
                 </div>
               </div>
             </div>
@@ -220,10 +266,15 @@ export function AdminDashboard() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5 text-indigo-600" />
+              <Plus className="w-5 h-5 text-[var(--brand-primary)]" />
               Create New Educator Token
             </CardTitle>
           </CardHeader>
+          {plan && (
+            <div className="mb-5">
+              <UsageMeter label="Educators" used={teachers.length} limit={plan.max_teachers} unit="used" />
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Educator Name"
@@ -244,7 +295,10 @@ export function AdminDashboard() {
               </Button>
             </div>
           </div>
-          <p className="mt-4 text-xs text-gray-500 p-3 bg-indigo-50 rounded-xl">
+          {tokenError && (
+            <p className="mt-4 text-xs text-red-600 p-3 bg-red-50 rounded-xl">{tokenError}</p>
+          )}
+          <p className="mt-4 text-xs text-ink-faint p-3 bg-[var(--brand-primary-soft)] rounded-xl">
             Tokens are valid for 7 days and can only be used once. Share securely with the educator.
           </p>
         </Card>
@@ -255,7 +309,7 @@ export function AdminDashboard() {
             <div className="p-6">
               <div className="flex items-center justify-between mb-5">
                 <CardTitle className="flex items-center gap-2">
-                  <Key className="w-5 h-5 text-indigo-600" />
+                  <Key className="w-5 h-5 text-[var(--brand-primary)]" />
                   Access Tokens ({filteredTokens.length})
                 </CardTitle>
                 {tokenFilter === 'expired' && stats.expiredTokens > 0 && (
@@ -268,7 +322,7 @@ export function AdminDashboard() {
               {tokens.length > 0 && (
                 <>
                   <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4 pointer-events-none" />
                     <input
                       placeholder="Search tokens..."
                       value={tokenSearch}
@@ -281,7 +335,7 @@ export function AdminDashboard() {
                       <button
                         key={f}
                         onClick={() => setTokenFilter(f)}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${tokenFilter === f ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${tokenFilter === f ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' : 'bg-surface-2 text-ink-soft hover:bg-surface-2'}`}
                       >
                         {f === 'all' ? `All (${tokens.length})` :
                          f === 'active' ? `Active (${stats.activeTokens})` :
@@ -295,25 +349,25 @@ export function AdminDashboard() {
 
             {filteredTokens.length === 0 ? (
               <div className="text-center py-12 px-6">
-                <Key className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium">No tokens found</p>
-                <p className="text-gray-400 text-sm mt-1">{tokens.length === 0 ? 'Create your first token above' : 'Try adjusting your filters'}</p>
+                <Key className="w-10 h-10 text-ink-muted mx-auto mb-3" />
+                <p className="text-ink-faint font-medium">No tokens found</p>
+                <p className="text-ink-muted text-sm mt-1">{tokens.length === 0 ? 'Create your first token above' : 'Try adjusting your filters'}</p>
               </div>
             ) : (
-              <div className="max-h-96 overflow-y-auto scrollbar-thin divide-y divide-gray-50">
+              <div className="max-h-96 overflow-y-auto scrollbar-thin divide-y divide-app">
                 {filteredTokens.map(token => {
                   const status = getTokenStatus(token)
                   const isDeleting = deletingTokens.includes(token.id)
                   return (
-                    <div key={token.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                    <div key={token.id} className="px-6 py-4 hover:bg-surface-2 transition-colors">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 text-sm truncate">{token.teacher_name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{token.phone_number}</p>
-                          <code className="text-xs font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded mt-1 inline-block">
+                          <p className="font-medium text-ink text-sm truncate">{token.teacher_name}</p>
+                          <p className="text-xs text-ink-faint mt-0.5">{token.phone_number}</p>
+                          <code className="text-xs font-mono text-[var(--brand-primary)] bg-[var(--brand-primary-soft)] px-1.5 py-0.5 rounded mt-1 inline-block">
                             {token.token}
                           </code>
-                          <p className="text-xs text-gray-400 mt-1">Created {formatDate(token.created_at)}</p>
+                          <p className="text-xs text-ink-muted mt-1">Created {formatDate(token.created_at)}</p>
                         </div>
                         <div className="flex flex-col items-end gap-2 shrink-0">
                           <span className={`badge border ${status.cls} text-xs`}>{status.label}</span>
@@ -321,7 +375,7 @@ export function AdminDashboard() {
                             <button
                               onClick={() => deleteToken(token.id)}
                               disabled={isDeleting}
-                              className="text-gray-400 hover:text-red-500 transition-colors"
+                              className="text-ink-muted hover:text-red-500 transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -339,13 +393,13 @@ export function AdminDashboard() {
           <Card padding="none">
             <div className="p-6">
               <CardTitle className="flex items-center gap-2 mb-5">
-                <Users className="w-5 h-5 text-violet-600" />
+                <Users className="w-5 h-5 text-[var(--brand-secondary)]" />
                 Registered Educators ({filteredTeachers.length})
               </CardTitle>
 
               {teachers.length > 0 && (
                 <div className="relative mb-4">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4 pointer-events-none" />
                   <input
                     placeholder="Search educators..."
                     value={educatorSearch}
@@ -358,30 +412,30 @@ export function AdminDashboard() {
 
             {filteredTeachers.length === 0 ? (
               <div className="text-center py-12 px-6">
-                <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium">
+                <Users className="w-10 h-10 text-ink-muted mx-auto mb-3" />
+                <p className="text-ink-faint font-medium">
                   {teachers.length === 0 ? 'No educators registered yet' : 'No educators found'}
                 </p>
-                <p className="text-gray-400 text-sm mt-1">
+                <p className="text-ink-muted text-sm mt-1">
                   {teachers.length === 0 ? 'Create tokens and share with educators' : 'Try adjusting your search'}
                 </p>
               </div>
             ) : (
-              <div className="max-h-96 overflow-y-auto scrollbar-thin divide-y divide-gray-50">
+              <div className="max-h-96 overflow-y-auto scrollbar-thin divide-y divide-app">
                 {filteredTeachers.map(teacher => (
-                  <div key={teacher.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                  <div key={teacher.id} className="px-6 py-4 hover:bg-surface-2 transition-colors">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
-                            <span className="text-violet-700 text-sm font-semibold">{teacher.name?.charAt(0)?.toUpperCase()}</span>
+                          <div className="w-8 h-8 rounded-full bg-[var(--brand-secondary-soft)] flex items-center justify-center shrink-0">
+                            <span className="text-[var(--brand-secondary-dark)] text-sm font-semibold">{teacher.name?.charAt(0)?.toUpperCase()}</span>
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium text-gray-900 text-sm truncate">{teacher.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{teacher.email}</p>
+                            <p className="font-medium text-ink text-sm truncate">{teacher.name}</p>
+                            <p className="text-xs text-ink-faint truncate">{teacher.email}</p>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-400 mt-2 ml-10">{teacher.phone_number} · Joined {formatDate(teacher.created_at)}</p>
+                        <p className="text-xs text-ink-muted mt-2 ml-10">{teacher.phone_number} · Joined {formatDate(teacher.created_at)}</p>
                       </div>
                       <Button
                         variant="outline"
@@ -400,18 +454,19 @@ export function AdminDashboard() {
           </Card>
         </div>
       </div>
+      )}
 
       {/* Revoke Modal */}
       {showRevokeModal.show && showRevokeModal.teacher && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 animate-in">
+          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md border border-app animate-in">
             <div className="p-6">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 text-center mb-2">Revoke Educator Account</h3>
-              <p className="text-gray-500 text-center text-sm mb-6">
-                Are you sure you want to revoke access for <strong className="text-gray-900">{showRevokeModal.teacher.name}</strong>? This will permanently delete their account.
+              <h3 className="text-lg font-bold text-ink text-center mb-2">Revoke Educator Account</h3>
+              <p className="text-ink-faint text-center text-sm mb-6">
+                Are you sure you want to revoke access for <strong className="text-ink">{showRevokeModal.teacher.name}</strong>? This will permanently delete their account.
               </p>
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setShowRevokeModal({ show: false, teacher: null })} className="flex-1" disabled={!!revoking}>Cancel</Button>
@@ -425,13 +480,13 @@ export function AdminDashboard() {
       {/* Delete Expired Modal */}
       {showDeleteExpiredModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 animate-in">
+          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md border border-app animate-in">
             <div className="p-6">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
                 <XCircle className="w-6 h-6 text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 text-center mb-2">Delete All Expired Tokens</h3>
-              <p className="text-gray-500 text-center text-sm mb-6">
+              <h3 className="text-lg font-bold text-ink text-center mb-2">Delete All Expired Tokens</h3>
+              <p className="text-ink-faint text-center text-sm mb-6">
                 This will permanently delete {stats.expiredTokens} expired token{stats.expiredTokens !== 1 ? 's' : ''}. This action cannot be undone.
               </p>
               <div className="flex gap-3">
