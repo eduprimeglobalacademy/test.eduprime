@@ -12,6 +12,37 @@ const getServiceRoleClient = () => {
   return supabase
 }
 
+/**
+ * Session handoff across a subdomain boundary — used right after org
+ * signup, which happens on the root domain, to land the new admin
+ * already signed in on their own subdomain. Sessions live in per-origin
+ * localStorage, so "sign in, then redirect" alone doesn't carry across;
+ * the tokens have to travel in the URL. Uses the hash fragment
+ * specifically (never sent to any server, unlike a query string) under a
+ * name that can't collide with Supabase's own magic-link/OAuth params,
+ * and is stripped from the visible URL immediately on consumption either
+ * way — the tokens never persist as the page's address.
+ */
+export function buildSessionHandoffUrl(baseUrl: string, accessToken: string, refreshToken: string): string {
+  return `${baseUrl}#handoff_access_token=${encodeURIComponent(accessToken)}&handoff_refresh_token=${encodeURIComponent(refreshToken)}`
+}
+
+export async function consumeSessionHandoff(): Promise<boolean> {
+  const hash = window.location.hash
+  if (!hash.includes('handoff_access_token=')) return false
+
+  const params = new URLSearchParams(hash.slice(1))
+  const accessToken = params.get('handoff_access_token')
+  const refreshToken = params.get('handoff_refresh_token')
+
+  // Strip immediately regardless of outcome below.
+  window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
+  if (!accessToken || !refreshToken) return false
+  const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+  return !error
+}
+
 export interface AuthUser {
   id: string
   email: string

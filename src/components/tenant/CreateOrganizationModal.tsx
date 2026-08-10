@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { X, Building2, User, Mail, Lock, Link2, ArrowRight } from 'lucide-react'
 import { Button } from '../ui/Button'
+import { supabase } from '../../lib/supabase'
+import { buildSessionHandoffUrl } from '../../lib/auth'
 import { slugify, isValidSlug, isReservedSlug, orgUrl, ROOT_DOMAIN } from '../../lib/tenant'
 
 interface CreateOrganizationModalProps {
@@ -59,7 +61,18 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
         return
       }
 
-      window.location.href = orgUrl(result.org.slug)
+      const destination = orgUrl(result.org.slug)
+
+      // Sign in now (root domain) so we have a session to hand off — the
+      // org's own subdomain is a different origin and starts with none of
+      // its own, no matter what we did here otherwise.
+      const { data: signInData } = await supabase.auth.signInWithPassword({
+        email: adminEmail.trim(), password: adminPassword,
+      })
+
+      window.location.href = signInData.session
+        ? buildSessionHandoffUrl(destination, signInData.session.access_token, signInData.session.refresh_token)
+        : destination // Falls back to a logged-out landing — they can still sign in by hand.
     } catch {
       setError('An unexpected error occurred. Please try again.')
       setLoading(false)

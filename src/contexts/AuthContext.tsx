@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { getCurrentUser, signOut as authSignOut } from '../lib/auth'
+import { getCurrentUser, signOut as authSignOut, consumeSessionHandoff } from '../lib/auth'
 import type { AuthUser } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
@@ -46,7 +46,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   useEffect(() => {
-    refreshUser()
+    // Consume a cross-subdomain session handoff (post org-signup) before
+    // the first refreshUser() check — otherwise that check runs against
+    // no session yet and this landing page briefly (or permanently, until
+    // the next auth event) reads as logged out.
+    consumeSessionHandoff().then(() => refreshUser())
 
     // Covers the OAuth redirect-back case reliably: supabase-js parses the
     // access token out of the URL and fires SIGNED_IN, which may land
