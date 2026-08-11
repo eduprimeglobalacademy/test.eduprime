@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, CreditCard, ArrowLeft } from 'lucide-react'
+import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, CreditCard, Palette, ArrowLeft } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -10,6 +10,7 @@ import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { UsageMeter } from '../ui/UsageMeter'
 import { BillingPanel } from './BillingPanel'
+import { BrandingCard } from './BrandingCard'
 import { OrgStatusBanner } from '../billing/OrgStatusBanner'
 import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
 import { WelcomeOnboarding } from './WelcomeOnboarding'
@@ -28,7 +29,7 @@ export function AdminDashboard() {
   const { plan } = usePlanLimits()
   const orgName = org?.name || 'EduPrime Global Academy'
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
-  const [viewMode, setViewMode] = useState<'dashboard' | 'billing'>('dashboard')
+  const [viewMode, setViewMode] = useState<'dashboard' | 'billing' | 'branding'>('dashboard')
   const [showWelcome, setShowWelcome] = useState(() => new URLSearchParams(window.location.search).get('welcome') === '1')
   const [tokens, setTokens] = useState<TeacherToken[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -197,6 +198,10 @@ export function AdminDashboard() {
             <div className="flex items-center gap-2 sm:gap-3">
               {viewMode === 'dashboard' ? (
                 <>
+                  <Button variant="outline" onClick={() => setViewMode('branding')} size="sm">
+                    <Palette className="w-4 h-4" />
+                    <span className="hidden sm:inline">Branding</span>
+                  </Button>
                   <Button variant="outline" onClick={() => setViewMode('billing')} size="sm">
                     <CreditCard className="w-4 h-4" />
                     <span className="hidden sm:inline">Billing</span>
@@ -230,6 +235,14 @@ export function AdminDashboard() {
             <p className="text-ink-faint mt-1">Manage your organization's plan and subscription</p>
           </div>
           <BillingPanel />
+        </div>
+      ) : viewMode === 'branding' ? (
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-ink">Branding</h2>
+            <p className="text-ink-faint mt-1">Your logo and colors — shown everywhere your students and educators see this platform</p>
+          </div>
+          {org && <BrandingCard org={org} />}
         </div>
       ) : (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

@@ -2,6 +2,13 @@ import { CheckCircle, XCircle, Download, MinusCircle } from 'lucide-react'
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { Button } from '../ui/Button'
+import { useTenant } from '../../contexts/TenantContext'
+
+function hexToRgb(hex: string): [number, number, number] {
+  const m = hex.replace('#', '')
+  const num = parseInt(m.length === 3 ? m.split('').map(c => c + c).join('') : m, 16)
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255]
+}
 
 interface TestResultsProps {
   results: {
@@ -25,6 +32,7 @@ interface TestResultsProps {
 }
 
 export function TestResults({ results }: TestResultsProps) {
+  const { org } = useTenant()
   const { score, maxScore, showResults, testTitle, studentName, studentEmail, submittedAt, questions } = results
   const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0
 
@@ -51,18 +59,28 @@ export function TestResults({ results }: TestResultsProps) {
 
   const downloadPDF = () => {
     const doc = new jsPDF()
+    const [r, g, b] = hexToRgb(org?.primary_color || '#6366F1')
+
+    doc.setFillColor(r, g, b)
+    doc.rect(0, 0, 210, 12, 'F')
+
+    doc.setFontSize(11)
+    doc.setTextColor(org ? '#FFFFFF' : '#FFFFFF')
+    doc.text(org?.name || 'EduPrime Global Academy', 20, 8)
+
+    doc.setTextColor('#000000')
     doc.setFontSize(20)
-    doc.text('Assessment Results', 20, 20)
+    doc.text('Assessment Results', 20, 28)
     doc.setFontSize(12)
-    doc.text(`Test: ${testTitle}`, 20, 35)
-    doc.text(`Student: ${studentName}`, 20, 45)
-    doc.text(`Email: ${studentEmail}`, 20, 55)
-    doc.text(`Submitted: ${new Date(submittedAt).toLocaleString()}`, 20, 65)
+    doc.text(`Test: ${testTitle}`, 20, 43)
+    doc.text(`Student: ${studentName}`, 20, 53)
+    doc.text(`Email: ${studentEmail}`, 20, 63)
+    doc.text(`Submitted: ${new Date(submittedAt).toLocaleString()}`, 20, 73)
     doc.setFontSize(14)
-    doc.text('Score Summary', 20, 85)
+    doc.text('Score Summary', 20, 93)
     doc.setFontSize(12)
-    doc.text(`Score: ${score}/${maxScore} (${percentage}%)`, 20, 95)
-    doc.text(`Grade: ${gradeInfo.grade}`, 20, 105)
+    doc.text(`Score: ${score}/${maxScore} (${percentage}%)`, 20, 103)
+    doc.text(`Grade: ${gradeInfo.grade}`, 20, 113)
     doc.save(`${testTitle}_Results_${studentName}.pdf`)
   }
 

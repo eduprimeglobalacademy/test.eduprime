@@ -28,6 +28,24 @@ function applyBrandColors(org: Organization | null) {
 
   if (org?.secondary_color) root.style.setProperty('--brand-secondary', org.secondary_color)
   else root.style.removeProperty('--brand-secondary')
+
+  // Browser tab identity — white-label customers get their own name/icon
+  // here too, not just in-page branding. Only touches the tab when an org
+  // actually resolved; the root marketing page keeps index.html's static
+  // "EduPrime Global Academy" title/favicon.
+  if (org?.name) document.title = org.name
+
+  let favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+  if (org?.logo_url) {
+    if (!favicon) {
+      favicon = document.createElement('link')
+      favicon.rel = 'icon'
+      document.head.appendChild(favicon)
+    }
+    favicon.href = org.logo_url
+  } else if (favicon) {
+    favicon.href = '/vite.svg'
+  }
 }
 
 interface TenantProviderProps {

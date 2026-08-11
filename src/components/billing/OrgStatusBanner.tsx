@@ -38,8 +38,8 @@ export function OrgStatusBanner({ org, subscription }: OrgStatusBannerProps) {
       <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
         <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-red-900">Billing is past due</p>
-          <p className="text-xs text-red-700 mt-0.5">Creating new assessments and educator tokens is paused. Existing tests, results, and students in progress are unaffected.</p>
+          <p className="text-sm font-medium text-red-900">Account suspended</p>
+          <p className="text-xs text-red-700 mt-0.5">Creating new assessments and educator tokens is paused. Existing tests, results, and students in progress are unaffected. Contact support if you believe this is a mistake.</p>
         </div>
       </div>
     )

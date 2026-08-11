@@ -25,7 +25,14 @@ export function BillingPanel() {
 
   const fetchData = async () => {
     setLoading(true)
-    const { data: plansData } = await supabase.from('plans').select('*').order('sort_order')
+    // Negotiated/custom plans (is_public = false) are assigned by platform
+    // staff to one specific org, not browsable by every other org here —
+    // still include the org's own current plan even if it's private, so an
+    // org already on a custom deal sees its own plan card.
+    const plansQuery = org?.id
+      ? supabase.from('plans').select('*').or(`is_public.eq.true,id.eq.${org.plan_id}`)
+      : supabase.from('plans').select('*').eq('is_public', true)
+    const { data: plansData } = await plansQuery.order('sort_order')
     setPlans(plansData || [])
 
     if (org?.id) {

@@ -176,19 +176,26 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
         const sel = answers[q.id]
         if (sel && q.options.find(o => o.id === sel)?.is_correct) totalScore += q.points
       }
-      const { data: attemptData, error: attemptError } = await supabase.from('test_attempts').insert([{
+      // Generated client-side rather than read back via .select() — there's
+      // no anon SELECT policy on test_attempts (anon key holders must not
+      // be able to read other students' names/emails/scores), so an
+      // insert().select() chain fails RLS on the implicit RETURNING clause.
+      // Knowing the id up front avoids needing to read it back at all.
+      const attemptId = crypto.randomUUID()
+      const { error: attemptError } = await supabase.from('test_attempts').insert([{
+        id: attemptId,
         test_id: test!.id, student_name: studentName, student_email: studentEmail, phone_number: studentPhone,
         total_score: totalScore, max_score: maxScore,
         time_taken_seconds: test!.duration_minutes ? Math.max(0, test!.duration_minutes * 60 - (timeLeft || 0)) : null,
         is_submitted: true, submitted_at: new Date().toISOString()
-      }]).select().single()
+      }])
       if (attemptError) throw attemptError
       for (const q of questions) {
         const sel = answers[q.id]
         if (sel) {
           const opt = q.options.find(o => o.id === sel)
           await supabase.from('student_answers').insert([{
-            attempt_id: attemptData.id, question_id: q.id, selected_option_id: sel,
+            attempt_id: attemptId, question_id: q.id, selected_option_id: sel,
             is_correct: opt?.is_correct || false, points_earned: opt?.is_correct ? q.points : 0
           }])
         }

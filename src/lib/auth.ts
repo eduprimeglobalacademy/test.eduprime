@@ -23,8 +23,17 @@ const getServiceRoleClient = () => {
  * and is stripped from the visible URL immediately on consumption either
  * way — the tokens never persist as the page's address.
  */
-export function buildSessionHandoffUrl(baseUrl: string, accessToken: string, refreshToken: string): string {
-  return `${baseUrl}#handoff_access_token=${encodeURIComponent(accessToken)}&handoff_refresh_token=${encodeURIComponent(refreshToken)}`
+export function buildSessionHandoffUrl(
+  baseUrl: string,
+  accessToken: string,
+  refreshToken: string,
+  impersonation?: { orgName: string; adminEmail: string }
+): string {
+  let hash = `handoff_access_token=${encodeURIComponent(accessToken)}&handoff_refresh_token=${encodeURIComponent(refreshToken)}`
+  if (impersonation) {
+    hash += `&handoff_impersonating=1&handoff_org_name=${encodeURIComponent(impersonation.orgName)}&handoff_admin_email=${encodeURIComponent(impersonation.adminEmail)}`
+  }
+  return `${baseUrl}#${hash}`
 }
 
 export async function consumeSessionHandoff(): Promise<boolean> {
@@ -34,13 +43,32 @@ export async function consumeSessionHandoff(): Promise<boolean> {
   const params = new URLSearchParams(hash.slice(1))
   const accessToken = params.get('handoff_access_token')
   const refreshToken = params.get('handoff_refresh_token')
+  const impersonating = params.get('handoff_impersonating') === '1'
+  const orgName = params.get('handoff_org_name')
+  const adminEmail = params.get('handoff_admin_email')
 
   // Strip immediately regardless of outcome below.
   window.history.replaceState(null, '', window.location.pathname + window.location.search)
 
   if (!accessToken || !refreshToken) return false
   const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-  return !error
+  if (error) return false
+
+  // Handoff arrived from the standalone admin app's "view as" flow, not
+  // this app's own startImpersonation() — no return session to stash
+  // (the admin's real session lives on the admin app's own origin), but
+  // the banner still needs orgName/adminEmail to render and exitImpersonation
+  // needs to know there's nothing to restore.
+  if (impersonating && orgName && adminEmail) {
+    sessionStorage.setItem(IMPERSONATION_KEY, JSON.stringify({
+      orgName,
+      adminEmail,
+      returnAccessToken: '',
+      returnRefreshToken: '',
+    } satisfies ImpersonationState))
+  }
+
+  return true
 }
 
 export interface AuthUser {
@@ -290,6 +318,17 @@ export async function exitImpersonation(): Promise<void> {
   const state = getImpersonationState()
   if (!state) return
   sessionStorage.removeItem(IMPERSONATION_KEY)
+
+  // Handoff-originated impersonation (started from the standalone admin
+  // app) has no return session to restore to — the admin's real session
+  // lives on that app's own origin, not here. Just sign out of the org
+  // session; the admin returns to the admin app tab, which was never
+  // touched.
+  if (!state.returnAccessToken || !state.returnRefreshToken) {
+    await supabase.auth.signOut()
+    return
+  }
+
   await supabase.auth.setSession({
     access_token: state.returnAccessToken,
     refresh_token: state.returnRefreshToken,
