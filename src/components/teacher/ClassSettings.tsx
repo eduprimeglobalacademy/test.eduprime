@@ -147,8 +147,20 @@ export function ClassSettings({ classId, classes, tests, updateClass, deleteClas
         <p className="text-sm text-ink-faint mt-1">{classLabel(cls)}</p>
       </div>
 
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4 max-w-3xl">
-        <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide">Properties</p>
+      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide">Properties</p>
+          {!editing && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={startEdit}><Pencil className="w-3.5 h-3.5" />Edit</Button>
+              {classTests.length === 0 && (
+                <Button size="sm" variant="outline" onClick={handleDelete} className="text-red-500 border-red-200 hover:bg-red-50">
+                  <Trash2 className="w-3.5 h-3.5" />Delete class
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
         {editing ? (
           <div className="space-y-4">
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -164,16 +176,22 @@ export function ClassSettings({ classId, classes, tests, updateClass, deleteClas
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={startEdit}><Pencil className="w-3.5 h-3.5" />Edit</Button>
-            {classTests.length === 0 ? (
-              <Button size="sm" variant="outline" onClick={handleDelete} className="text-red-500 border-red-200 hover:bg-red-50">
-                <Trash2 className="w-3.5 h-3.5" />Delete class
-              </Button>
-            ) : (
-              <p className="text-xs text-ink-muted">Delete this class's {classTests.length} assessment{classTests.length !== 1 ? 's' : ''} first to delete it.</p>
-            )}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'Section name', value: cls.name },
+              { label: 'Course', value: cls.course_name },
+              { label: 'Grade level', value: cls.grade_level },
+              { label: 'Term', value: cls.academic_term },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <p className="text-xs text-ink-faint">{label}</p>
+                <p className={`text-sm mt-0.5 ${value ? 'text-ink font-medium' : 'text-ink-muted italic'}`}>{value || 'Not set'}</p>
+              </div>
+            ))}
           </div>
+        )}
+        {!editing && classTests.length > 0 && (
+          <p className="text-xs text-ink-muted">Delete this class's {classTests.length} assessment{classTests.length !== 1 ? 's' : ''} first to delete it.</p>
         )}
       </div>
 

@@ -119,7 +119,7 @@ export function TestSettings({ testId, onBack, onSaved, onDeleted }: TestSetting
   if (loading || !form || !test) return <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
 
   return (
-    <div className="max-w-3xl space-y-5 pb-24">
+    <div className="space-y-6">
       <div className="flex items-center gap-3 min-w-0">
         <Button variant="ghost" onClick={onBack} size="sm">
           <ArrowLeft className="w-4 h-4" />Back
@@ -133,79 +133,88 @@ export function TestSettings({ testId, onBack, onSaved, onDeleted }: TestSetting
         </div>
       </div>
 
-      <BehaviorFields values={form} onChange={update} classId={test.class_id || undefined} testId={testId} />
-      <GradingFields values={form} onChange={update} />
+      <div className="grid lg:grid-cols-[1fr_280px] gap-6 items-start">
+        <div className="space-y-5 min-w-0">
+          <BehaviorFields values={form} onChange={update} classId={test.class_id || undefined} testId={testId} />
+          <GradingFields values={form} onChange={update} />
 
-      {/* Collaborators */}
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          <Users className="w-4 h-4 text-[var(--brand-primary)]" />Collaborators
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="email"
-            placeholder="colleague@yourschool.com"
-            value={collabEmail}
-            onChange={(e) => setCollabEmail(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddCollaborator()}
-            className="input-base flex-1"
-          />
-          <Button onClick={handleAddCollaborator} loading={collabAdding} disabled={!collabEmail.trim()}>
-            <Plus className="w-4 h-4" />
-          </Button>
-        </div>
-        {collabError && <p className="text-xs text-red-600">{collabError}</p>}
-        <p className="text-xs text-ink-muted">Must already be a registered educator in your organization.</p>
-        {collaborators.length > 0 && (
-          <div className="space-y-2">
-            {collaborators.map((c) => (
-              <div key={c.id} className="flex items-center justify-between p-3 bg-app rounded-xl">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink truncate">{c.name}</p>
-                  <p className="text-xs text-ink-faint truncate">{c.email}</p>
-                </div>
-                <button
-                  onClick={() => remove(c.id)}
-                  className="p-1.5 text-ink-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Danger zone */}
-      <div className="bg-surface rounded-2xl border border-red-200 shadow-sm p-5 sm:p-6 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
-          <Trash2 className="w-4 h-4" />Danger Zone
-        </div>
-        {showDeleteConfirm ? (
-          <div className="space-y-3">
-            <p className="text-sm text-ink-soft">Delete "<strong>{test.title}</strong>"? This permanently removes all questions, student submissions, and reports. This cannot be undone.</p>
-            <div className="flex gap-2">
-              <Button variant="danger" onClick={handleDelete} loading={deleting}>Delete Assessment</Button>
-              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>Cancel</Button>
+          {/* Collaborators */}
+          <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+              <Users className="w-4 h-4 text-[var(--brand-primary)]" />Collaborators
             </div>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                placeholder="colleague@yourschool.com"
+                value={collabEmail}
+                onChange={(e) => setCollabEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCollaborator()}
+                className="input-base flex-1"
+              />
+              <Button onClick={handleAddCollaborator} loading={collabAdding} disabled={!collabEmail.trim()}>
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            {collabError && <p className="text-xs text-red-600">{collabError}</p>}
+            <p className="text-xs text-ink-muted">Must already be a registered educator in your organization.</p>
+            {collaborators.length > 0 && (
+              <div className="grid sm:grid-cols-2 gap-2">
+                {collaborators.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between p-3 bg-app rounded-xl">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink truncate">{c.name}</p>
+                      <p className="text-xs text-ink-faint truncate">{c.email}</p>
+                    </div>
+                    <button
+                      onClick={() => remove(c.id)}
+                      className="p-1.5 text-ink-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="text-red-500 border-red-200 hover:bg-red-50">
-            <Trash2 className="w-4 h-4" />Delete Assessment
-          </Button>
-        )}
-      </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
-          <p className="text-sm text-red-600">{error}</p>
+          {/* Danger zone */}
+          <div className="bg-surface rounded-2xl border border-red-200 shadow-sm p-5 sm:p-6 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
+              <Trash2 className="w-4 h-4" />Danger Zone
+            </div>
+            {showDeleteConfirm ? (
+              <div className="space-y-3">
+                <p className="text-sm text-ink-soft">Delete "<strong>{test.title}</strong>"? This permanently removes all questions, student submissions, and reports. This cannot be undone.</p>
+                <div className="flex gap-2">
+                  <Button variant="danger" onClick={handleDelete} loading={deleting}>Delete Assessment</Button>
+                  <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="text-red-500 border-red-200 hover:bg-red-50">
+                <Trash2 className="w-4 h-4" />Delete Assessment
+              </Button>
+            )}
+          </div>
         </div>
-      )}
 
-      {/* Sticky save bar */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-surface border-t border-app px-4 sm:px-6 lg:px-8 py-3.5 flex items-center gap-3 z-10">
-        <Button onClick={handleSave} loading={saving}><Save className="w-4 h-4" />Save Settings</Button>
-        {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="w-4 h-4" />Saved</span>}
+        {/* Save panel */}
+        <div className="lg:sticky lg:top-24 space-y-3">
+          <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 space-y-3">
+            <p className="text-sm font-semibold text-ink-soft">Save changes</p>
+            <p className="text-xs text-ink-faint">Updates apply the next time a student opens this assessment.</p>
+            {error && (
+              <div className="p-2.5 bg-red-50 border border-red-100 rounded-lg">
+                <p className="text-xs text-red-600">{error}</p>
+              </div>
+            )}
+            <Button onClick={handleSave} loading={saving} className="w-full">
+              <Save className="w-4 h-4" />Save Settings
+            </Button>
+            {saved && <span className="flex items-center justify-center gap-1 text-sm text-emerald-600"><Check className="w-4 h-4" />Saved</span>}
+          </div>
+        </div>
       </div>
     </div>
   )
