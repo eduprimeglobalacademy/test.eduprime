@@ -387,27 +387,21 @@ Note: Mark correct answers with * or put correct answer first (A.)
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
+  if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
 
   return (
-    <div className="min-h-screen bg-app">
-      <header className="page-header sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <Button variant="ghost" onClick={onBack} size="sm">
-                <ArrowLeft className="w-4 h-4" />Back
-              </Button>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink truncate">{settings.title || 'New assessment'}</p>
-                <p className="text-xs text-ink-faint">{testId ? `${questions.length} question${questions.length !== 1 ? 's' : ''}` : 'Not saved yet'}</p>
-              </div>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center gap-3 min-w-0">
+        <Button variant="ghost" onClick={onBack} size="sm">
+          <ArrowLeft className="w-4 h-4" />Back
+        </Button>
+        <div className="min-w-0">
+          <p className="text-base font-semibold text-ink truncate">{settings.title || 'New assessment'}</p>
+          <p className="text-xs text-ink-faint">{testId ? `${questions.length} question${questions.length !== 1 ? 's' : ''}` : 'Not saved yet'}</p>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid lg:grid-cols-[380px_1fr] gap-6 items-start">
+      <div className="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
         {/* Left: settings */}
         <div className="lg:sticky lg:top-24 space-y-4">
           <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">

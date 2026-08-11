@@ -37,6 +37,7 @@ export function TeacherDashboard() {
   const [selectedTestId, setSelectedTestId] = useState<string>('')
   const [authoringTestId, setAuthoringTestId] = useState<string | undefined>(undefined)
   const [authoringClassId, setAuthoringClassId] = useState<string | undefined>(undefined)
+  const [returnTo, setReturnTo] = useState<ViewMode>('dashboard')
   const { classes, createClass, updateClass, deleteClass } = useClasses(teacher?.id)
 
   useEffect(() => { fetchData() }, [user])
@@ -57,11 +58,12 @@ export function TeacherDashboard() {
     }
   }
 
+  const effectiveViewMode = viewMode === 'author' ? returnTo : viewMode
   const sidebarSection: SidebarSection =
-    viewMode === 'assessments' ? 'assessments' :
-    viewMode === 'analytics' ? 'analytics' :
-    viewMode === 'settings' ? 'settings' :
-    viewMode === 'dashboard' ? 'dashboard' : 'classes'
+    effectiveViewMode === 'assessments' ? 'assessments' :
+    effectiveViewMode === 'analytics' ? 'analytics' :
+    effectiveViewMode === 'settings' ? 'settings' :
+    effectiveViewMode === 'dashboard' ? 'dashboard' : 'classes'
   const goToDashboard = () => { setViewMode('dashboard'); setSelectedClassId('') }
   const goToClasses = () => { setViewMode('classes'); setSelectedClassId('') }
   const goToAssessments = () => { setViewMode('assessments'); setSelectedClassId('') }
@@ -69,22 +71,21 @@ export function TeacherDashboard() {
   const goToSettings = () => { setViewMode('settings'); setSelectedClassId('') }
   const openClass = (classId: string) => { setSelectedClassId(classId); setViewMode('class-detail') }
 
-  const handlePreview = (testId: string) => { setSelectedTestId(testId); setViewMode('preview') }
-  const handleReports = (testId: string) => { setSelectedTestId(testId); setViewMode('reports') }
-  const handleAuthorNew = (classId?: string) => { setAuthoringTestId(undefined); setAuthoringClassId(classId); setViewMode('author') }
-  const handleAuthorExisting = (testId: string) => { setAuthoringTestId(testId); setAuthoringClassId(undefined); setViewMode('author') }
+  const handlePreview = (testId: string) => { setReturnTo(viewMode); setSelectedTestId(testId); setViewMode('preview') }
+  const handleReports = (testId: string) => { setReturnTo(viewMode); setSelectedTestId(testId); setViewMode('reports') }
+  const handleAuthorNew = (classId?: string) => { setReturnTo(viewMode); setAuthoringTestId(undefined); setAuthoringClassId(classId); setViewMode('author') }
+  const handleAuthorExisting = (testId: string) => { setReturnTo(viewMode); setAuthoringTestId(testId); setAuthoringClassId(undefined); setViewMode('author') }
   const handleBackFromDetail = () => {
     setSelectedTestId('')
     setAuthoringTestId(undefined)
     setAuthoringClassId(undefined)
-    setViewMode(selectedClassId ? 'class-detail' : 'assessments')
+    setViewMode(returnTo)
     fetchData()
   }
 
   if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
   if (viewMode === 'preview' && selectedTestId) return <TestPreview testId={selectedTestId} onBack={handleBackFromDetail} />
   if (viewMode === 'reports' && selectedTestId) return <TestReports testId={selectedTestId} onBack={handleBackFromDetail} />
-  if (viewMode === 'author' && teacher) return <TestAuthoring testId={authoringTestId} teacherId={teacher.id} initialClassId={authoringClassId} onBack={handleBackFromDetail} onTestSaved={fetchData} />
 
   const draftTests = tests.filter(t => t.status === 'draft')
   const liveTests = tests.filter(t => t.status === 'live')
@@ -150,7 +151,7 @@ export function TeacherDashboard() {
                 {classes.map(cls => {
                   const classTests = tests.filter(t => t.class_id === cls.id)
                   const live = classTests.filter(t => t.status === 'live').length
-                  const active = viewMode === 'class-detail' && selectedClassId === cls.id
+                  const active = effectiveViewMode === 'class-detail' && selectedClassId === cls.id
                   return (
                     <button
                       key={cls.id}
@@ -304,6 +305,10 @@ export function TeacherDashboard() {
 
           {viewMode === 'settings' && teacher && user && (
             <TeacherSettings teacher={teacher} email={user.email} onTeacherUpdated={fetchData} />
+          )}
+
+          {viewMode === 'author' && teacher && (
+            <TestAuthoring testId={authoringTestId} teacherId={teacher.id} initialClassId={authoringClassId} onBack={handleBackFromDetail} onTestSaved={fetchData} />
           )}
         </div>
       </div>
