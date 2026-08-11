@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Eye, Clock, ShieldCheck, GraduationCap, Check, Users, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Users, Plus, Trash2, Check } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useTestCollaborators } from '../../hooks/useTestCollaborators'
 import { Button } from '../ui/Button'
-import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
-import { BlockedStudentsPanel } from './BlockedStudentsPanel'
+import { BehaviorFields } from './BehaviorFields'
+import { GradingFields } from './GradingFields'
+import type { BehaviorValues } from './BehaviorFields'
+import type { GradingValues } from './GradingFields'
 import type { Test } from '../../lib/supabase'
 
 interface TestSettingsProps {
@@ -15,18 +17,7 @@ interface TestSettingsProps {
   onDeleted?: () => void
 }
 
-interface Form {
-  showResults: boolean
-  allowNavigationBack: boolean
-  perQuestionTiming: boolean
-  timePerQuestion: string
-  requireGoogleAuth: boolean
-  aGrade: string
-  bGrade: string
-  cGrade: string
-  dGrade: string
-  passingGrade: string
-}
+type Form = BehaviorValues & GradingValues
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -128,7 +119,7 @@ export function TestSettings({ testId, onBack, onSaved, onDeleted }: TestSetting
   if (loading || !form || !test) return <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
 
   return (
-    <div className="max-w-3xl space-y-6 pb-24">
+    <div className="max-w-3xl space-y-5 pb-24">
       <div className="flex items-center gap-3 min-w-0">
         <Button variant="ghost" onClick={onBack} size="sm">
           <ArrowLeft className="w-4 h-4" />Back
@@ -142,122 +133,8 @@ export function TestSettings({ testId, onBack, onSaved, onDeleted }: TestSetting
         </div>
       </div>
 
-      {/* Results & Navigation */}
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft mb-1">
-          <Eye className="w-4 h-4 text-[var(--brand-primary)]" />Results &amp; Navigation
-        </div>
-        {[
-          { key: 'showResults' as const, label: 'Show results to students after submission', desc: 'Students will see their score, grade, and question review' },
-          { key: 'allowNavigationBack' as const, label: 'Allow backward navigation', desc: 'Students can go back to previous questions during the test' },
-        ].map(({ key, label, desc }) => (
-          <label key={key} className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
-            <input
-              type="checkbox"
-              checked={form[key]}
-              onChange={(e) => update(key, e.target.checked)}
-              className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
-            />
-            <div>
-              <p className="text-sm font-medium text-ink-soft">{label}</p>
-              <p className="text-xs text-ink-faint mt-0.5">{desc}</p>
-            </div>
-          </label>
-        ))}
-      </div>
-
-      {/* Timing */}
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft mb-1">
-          <Clock className="w-4 h-4 text-[var(--brand-primary)]" />Timing
-        </div>
-        <label className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
-          <input
-            type="checkbox"
-            checked={form.perQuestionTiming}
-            onChange={(e) => update('perQuestionTiming', e.target.checked)}
-            className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
-          />
-          <div>
-            <p className="text-sm font-medium text-ink-soft">Per-question timing</p>
-            <p className="text-xs text-ink-faint mt-0.5">Each question has its own timer. Questions auto-advance when time expires. Otherwise, the overall duration set in Basic Info applies.</p>
-          </div>
-        </label>
-        {form.perQuestionTiming && (
-          <div className="ml-7">
-            <Input
-              label="Default time per question (seconds)"
-              type="number"
-              min="5"
-              value={form.timePerQuestion}
-              onChange={(e) => update('timePerQuestion', e.target.value)}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Access Control */}
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft mb-1">
-          <ShieldCheck className="w-4 h-4 text-[var(--brand-primary)]" />Access Control
-        </div>
-        <label className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
-          <input
-            type="checkbox"
-            checked={form.requireGoogleAuth}
-            onChange={(e) => update('requireGoogleAuth', e.target.checked)}
-            className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
-          />
-          <div>
-            <p className="text-sm font-medium text-ink-soft">Require Google sign-in before entry</p>
-            <p className="text-xs text-ink-faint mt-0.5">
-              Students must sign in with Google before entering the code.{' '}
-              {test.class_id
-                ? "They'll also need to be enrolled in this class's roster (share the enrollment link from the class page)."
-                : 'This assessment has no class, so only identity is checked — there\'s no roster to enroll in.'}
-            </p>
-          </div>
-        </label>
-        {form.requireGoogleAuth && (
-          <div className="ml-7 pt-2 border-t border-app mt-2">
-            <BlockedStudentsPanel testId={testId} classId={test.class_id || undefined} />
-          </div>
-        )}
-      </div>
-
-      {/* Grading */}
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          <GraduationCap className="w-4 h-4 text-[var(--brand-primary)]" />Grade Boundaries (%)
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { key: 'aGrade' as const, label: 'A minimum' },
-            { key: 'bGrade' as const, label: 'B minimum' },
-            { key: 'cGrade' as const, label: 'C minimum' },
-            { key: 'dGrade' as const, label: 'D minimum' },
-          ].map(({ key, label }) => (
-            <Input
-              key={key}
-              label={label}
-              type="number"
-              min="0"
-              max="100"
-              value={form[key]}
-              onChange={(e) => update(key, e.target.value)}
-            />
-          ))}
-        </div>
-        <Input
-          label="Passing grade minimum (%)"
-          type="number"
-          min="0"
-          max="100"
-          value={form.passingGrade}
-          onChange={(e) => update('passingGrade', e.target.value)}
-          helper="Scores below this are considered failing (F)"
-        />
-      </div>
+      <BehaviorFields values={form} onChange={update} classId={test.class_id || undefined} testId={testId} />
+      <GradingFields values={form} onChange={update} />
 
       {/* Collaborators */}
       <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-3">
@@ -326,7 +203,7 @@ export function TestSettings({ testId, onBack, onSaved, onDeleted }: TestSetting
       )}
 
       {/* Sticky save bar */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-surface border-t border-app px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3 z-10">
+      <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-surface border-t border-app px-4 sm:px-6 lg:px-8 py-3.5 flex items-center gap-3 z-10">
         <Button onClick={handleSave} loading={saving}><Save className="w-4 h-4" />Save Settings</Button>
         {saved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="w-4 h-4" />Saved</span>}
       </div>

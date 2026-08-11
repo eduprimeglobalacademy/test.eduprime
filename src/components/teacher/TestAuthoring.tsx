@@ -10,7 +10,15 @@ import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { ClassPicker } from './ClassPicker'
 import { QuestionBankPicker } from './QuestionBankPicker'
+import { BehaviorFields } from './BehaviorFields'
+import { GradingFields } from './GradingFields'
 import type { Test } from '../../lib/supabase'
+
+const CREATION_STEPS: { key: 'basic' | 'behavior' | 'grading'; label: string }[] = [
+  { key: 'basic', label: 'Basic Info' },
+  { key: 'behavior', label: 'Behavior' },
+  { key: 'grading', label: 'Grading' },
+]
 
 interface TestAuthoringProps {
   testId?: string
@@ -93,6 +101,8 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const [savingToBank, setSavingToBank] = useState<string | null>(null)
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
   const [basicInfoOpen, setBasicInfoOpen] = useState(!initialTestId)
+  const [creationStep, setCreationStep] = useState(0)
+  const canAdvanceStep = () => CREATION_STEPS[creationStep].key !== 'basic' || settings.title.trim().length > 0
   const { items: bankItems, saveToBank, deleteFromBank } = useQuestionBank(teacherId)
 
   const update = (key: keyof SettingsForm, value: any) => setSettings(prev => ({ ...prev, [key]: value }))
@@ -430,26 +440,119 @@ Note: Mark correct answers with * or put correct answer first (A.)
         </div>
       </div>
 
-      <div className={testId && !basicInfoOpen ? 'space-y-6' : 'grid lg:grid-cols-[380px_1fr] gap-6 items-start'}>
+      {!testId ? (
+        <div className="space-y-6">
+          {/* Step indicator */}
+          <div className="flex items-center">
+            {CREATION_STEPS.map(({ key, label }, i) => (
+              <div key={key} className="flex items-center flex-1">
+                <div className="flex items-center gap-2">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors shrink-0 ${
+                    i < creationStep ? 'bg-emerald-500 text-white' :
+                    i === creationStep ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' :
+                    'bg-surface-2 text-ink-muted'
+                  }`}>
+                    {i < creationStep ? '✓' : i + 1}
+                  </div>
+                  <span className={`text-sm font-medium ${i === creationStep ? 'text-[var(--brand-primary)]' : 'text-ink-muted'}`}>{label}</span>
+                </div>
+                {i < CREATION_STEPS.length - 1 && <div className={`flex-1 h-0.5 mx-3 rounded ${i < creationStep ? 'bg-emerald-400' : 'bg-surface-2'}`} />}
+              </div>
+            ))}
+          </div>
+
+          {creationStep === 0 && (
+            <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft mb-1">
+                <FileText className="w-4 h-4 text-[var(--brand-primary)]" />Basic Info
+              </div>
+              <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
+              <Input
+                label="Assessment Title *"
+                placeholder="e.g. Midterm Mathematics Exam"
+                value={settings.title}
+                onChange={(e) => update('title', e.target.value)}
+                required
+              />
+              <Input
+                label="Description"
+                placeholder="Brief description (optional)"
+                value={settings.description}
+                onChange={(e) => update('description', e.target.value)}
+              />
+              <Input
+                label="Duration (minutes)"
+                type="number"
+                placeholder="Leave empty for no time limit"
+                value={settings.durationMinutes}
+                onChange={(e) => update('durationMinutes', e.target.value)}
+                min="1"
+              />
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Input
+                  label="Start Time"
+                  type="datetime-local"
+                  value={settings.startTime}
+                  onChange={(e) => update('startTime', e.target.value)}
+                />
+                <Input
+                  label="End Time"
+                  type="datetime-local"
+                  value={settings.endTime}
+                  onChange={(e) => update('endTime', e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {creationStep === 1 && (
+            <BehaviorFields values={settings} onChange={update} classId={classId || undefined} />
+          )}
+
+          {creationStep === 2 && (
+            <GradingFields values={settings} onChange={update} />
+          )}
+
+          {settingsError && (
+            <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+              <p className="text-sm text-red-600">{settingsError}</p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={() => setCreationStep(s => Math.max(0, s - 1))} disabled={creationStep === 0}>
+              Back
+            </Button>
+            {creationStep < CREATION_STEPS.length - 1 ? (
+              <Button onClick={() => canAdvanceStep() && setCreationStep(s => s + 1)} disabled={!canAdvanceStep()}>
+                Continue<ArrowRight className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button onClick={handleSaveSettings} loading={savingSettings}>
+                <Save className="w-4 h-4" />Create Assessment
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+      <div className={!basicInfoOpen ? 'space-y-6' : 'grid lg:grid-cols-[380px_1fr] gap-6 items-start'}>
         {/* Basic info */}
-        <div className={testId && !basicInfoOpen ? 'w-full' : 'lg:sticky lg:top-24 space-y-4'}>
+        <div className={!basicInfoOpen ? 'w-full' : 'lg:sticky lg:top-24 space-y-4'}>
           <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
             <button
               type="button"
-              onClick={() => testId && setBasicInfoOpen(v => !v)}
-              className={`w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-4 text-left ${testId ? '' : 'cursor-default'} ${testId && !basicInfoOpen ? '' : 'border-b border-app'}`}
+              onClick={() => setBasicInfoOpen(v => !v)}
+              className={`w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-4 text-left ${!basicInfoOpen ? '' : 'border-b border-app'}`}
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft min-w-0">
                 <FileText className="w-4 h-4 text-[var(--brand-primary)] shrink-0" />
-                {testId && !basicInfoOpen ? (
+                {!basicInfoOpen ? (
                   <span className="truncate">Basic Info — {settings.title}</span>
                 ) : 'Basic Info'}
               </span>
-              {testId && (
-                <ArrowRight className={`w-4 h-4 text-ink-muted shrink-0 transition-transform duration-200 ${basicInfoOpen ? 'rotate-90' : ''}`} />
-              )}
+              <ArrowRight className={`w-4 h-4 text-ink-muted shrink-0 transition-transform duration-200 ${basicInfoOpen ? 'rotate-90' : ''}`} />
             </button>
-            {(basicInfoOpen || !testId) && (
+            {basicInfoOpen && (
               <div className="px-5 sm:px-6 py-5 space-y-4">
                 <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
                 <Input
@@ -498,17 +601,13 @@ Note: Mark correct answers with * or put correct answer first (A.)
                   </div>
                 )}
                 <Button onClick={handleSaveSettings} loading={savingSettings} className="w-full">
-                  <Save className="w-4 h-4" />
-                  {testId ? 'Save Details' : 'Create Assessment'}
+                  <Save className="w-4 h-4" />Save Details
                 </Button>
-                {!testId && (
-                  <p className="text-xs text-ink-faint text-center">Behavior, grading, and Google sign-in options are configured from Test Settings after you create the assessment.</p>
-                )}
               </div>
             )}
           </div>
 
-          {testId && onOpenSettings && (
+          {onOpenSettings && (
             <button
               onClick={() => onOpenSettings(testId)}
               className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl border border-[var(--brand-primary-soft)] bg-[var(--brand-primary-soft)] hover:brightness-95 transition-all text-left"
@@ -734,6 +833,7 @@ Note: Mark correct answers with * or put correct answer first (A.)
           </div>
         )}
       </div>
+      )}
 
       <QuestionBankPicker
         isOpen={showBankPicker}

@@ -240,7 +240,7 @@ export function ClassSettings({ classId, classes, tests, updateClass, deleteClas
           </div>
         )}
 
-        {roster.length > 6 && (
+        {roster.length > 0 && (
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted w-3.5 h-3.5 pointer-events-none" />
             <input
