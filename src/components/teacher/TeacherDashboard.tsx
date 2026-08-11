@@ -9,15 +9,13 @@ import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { UsageMeter } from '../ui/UsageMeter'
 import { OrgStatusBanner } from '../billing/OrgStatusBanner'
 import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
-import { CreateTestWizard } from './CreateTestWizard'
+import { TestAuthoring } from './TestAuthoring'
 import { TestDashboard } from './TestDashboard'
 import { TestPreview } from './TestPreview'
 import { TestReports } from './TestReports'
-import { EditTestModal } from './EditTestModal'
-import { CreateQuestionPage } from './CreateQuestionPage'
 import type { Test, Teacher } from '../../lib/supabase'
 
-type ViewMode = 'dashboard' | 'preview' | 'reports' | 'edit' | 'edit-questions'
+type ViewMode = 'dashboard' | 'preview' | 'reports' | 'author'
 
 export function TeacherDashboard() {
   const { user, signOut } = useAuth()
@@ -28,11 +26,9 @@ export function TeacherDashboard() {
   const [teacher, setTeacher] = useState<Teacher | null>(null)
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
-  const [showCreateTest, setShowCreateTest] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
   const [selectedTestId, setSelectedTestId] = useState<string>('')
-  const [selectedTest, setSelectedTest] = useState<Test | null>(null)
-  const [showEditModal, setShowEditModal] = useState(false)
+  const [authoringTestId, setAuthoringTestId] = useState<string | undefined>(undefined)
 
   useEffect(() => { fetchData() }, [user])
 
@@ -54,14 +50,14 @@ export function TeacherDashboard() {
 
   const handlePreview = (testId: string) => { setSelectedTestId(testId); setViewMode('preview') }
   const handleReports = (testId: string) => { setSelectedTestId(testId); setViewMode('reports') }
-  const handleEditQuestions = (testId: string) => { setSelectedTestId(testId); setViewMode('edit-questions') }
-  const handleEdit = (test: Test) => { setSelectedTest(test); setShowEditModal(true) }
-  const handleBack = () => { setViewMode('dashboard'); setSelectedTestId(''); setSelectedTest(null); fetchData() }
+  const handleAuthorNew = () => { setAuthoringTestId(undefined); setViewMode('author') }
+  const handleAuthorExisting = (testId: string) => { setAuthoringTestId(testId); setViewMode('author') }
+  const handleBack = () => { setViewMode('dashboard'); setSelectedTestId(''); setAuthoringTestId(undefined); fetchData() }
 
   if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
   if (viewMode === 'preview' && selectedTestId) return <TestPreview testId={selectedTestId} onBack={handleBack} />
   if (viewMode === 'reports' && selectedTestId) return <TestReports testId={selectedTestId} onBack={handleBack} />
-  if (viewMode === 'edit-questions' && selectedTestId) return <CreateQuestionPage testId={selectedTestId} onBack={handleBack} onQuestionsUpdated={handleBack} />
+  if (viewMode === 'author' && teacher) return <TestAuthoring testId={authoringTestId} teacherId={teacher.id} onBack={handleBack} onTestSaved={fetchData} />
 
   const draftTests = tests.filter(t => t.status === 'draft')
   const liveTests = tests.filter(t => t.status === 'live')
@@ -127,7 +123,7 @@ export function TeacherDashboard() {
             <h2 className="text-xl font-bold text-ink">My Assessments</h2>
             <p className="text-sm text-ink-faint">{tests.length} assessment{tests.length !== 1 ? 's' : ''} total</p>
           </div>
-          <Button onClick={() => setShowCreateTest(true)}>
+          <Button onClick={handleAuthorNew}>
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Create Assessment</span>
             <span className="sm:hidden">Create</span>
@@ -149,28 +145,11 @@ export function TeacherDashboard() {
           tests={tests}
           onTestUpdated={fetchData}
           onPreview={handlePreview}
-          onEdit={handleEdit}
+          onEdit={(test) => handleAuthorExisting(test.id)}
           onReports={handleReports}
-          onEditQuestions={handleEditQuestions}
+          onEditQuestions={handleAuthorExisting}
         />
       </div>
-
-      {showCreateTest && teacher && (
-        <CreateTestWizard
-          isOpen={showCreateTest}
-          onClose={() => setShowCreateTest(false)}
-          teacherId={teacher.id}
-          onTestCreated={fetchData}
-        />
-      )}
-      {showEditModal && selectedTest && (
-        <EditTestModal
-          isOpen={showEditModal}
-          onClose={() => { setShowEditModal(false); setSelectedTest(null) }}
-          test={selectedTest}
-          onTestUpdated={fetchData}
-        />
-      )}
     </div>
   )
 }
