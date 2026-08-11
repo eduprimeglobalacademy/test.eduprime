@@ -24,7 +24,20 @@ export function useClasses(teacherId: string | undefined) {
     return data as Class
   }
 
-  return { classes, loading, createClass, refetch: fetchClasses }
+  const updateClass = async (id: string, patch: { name?: string; course_name?: string; grade_level?: string; academic_term?: string }) => {
+    const { data, error } = await supabase.from('classes').update(patch).eq('id', id).select().single()
+    if (error) throw error
+    await fetchClasses()
+    return data as Class
+  }
+
+  const deleteClass = async (id: string) => {
+    const { error } = await supabase.from('classes').delete().eq('id', id)
+    if (error) throw error
+    await fetchClasses()
+  }
+
+  return { classes, loading, createClass, updateClass, deleteClass, refetch: fetchClasses }
 }
 
 export function classLabel(cls: Pick<Class, 'name' | 'course_name'>): string {

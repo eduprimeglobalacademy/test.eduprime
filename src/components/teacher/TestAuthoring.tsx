@@ -15,6 +15,7 @@ import type { Test } from '../../lib/supabase'
 interface TestAuthoringProps {
   testId?: string
   teacherId: string
+  initialClassId?: string
   onBack: () => void
   onTestSaved: () => void
 }
@@ -66,10 +67,10 @@ const fmtLocal = (s: string) => {
 
 const letters = ['A', 'B', 'C', 'D', 'E', 'F']
 
-export function TestAuthoring({ testId: initialTestId, teacherId, onBack, onTestSaved }: TestAuthoringProps) {
+export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId, onBack, onTestSaved }: TestAuthoringProps) {
   const [testId, setTestId] = useState<string | undefined>(initialTestId)
   const [loading, setLoading] = useState(!!initialTestId)
-  const [classId, setClassId] = useState('')
+  const [classId, setClassId] = useState(initialClassId || '')
   const [settings, setSettings] = useState<SettingsForm>(EMPTY_SETTINGS)
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsError, setSettingsError] = useState('')
