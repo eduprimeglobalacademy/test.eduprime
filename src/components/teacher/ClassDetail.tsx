@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Trash2, Copy, Users, Search, ChevronDown, QrCode, Star, Maximize2 } from 'lucide-react'
+import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Trash2, Copy, Users, Search, ChevronDown, QrCode, Star, Maximize2, Settings as SettingsIcon } from 'lucide-react'
 import QRCode from 'qrcode'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -29,13 +29,13 @@ export function ClassDetail({
   onCreateAssessment, onPreview, onEdit, onReports, onEditQuestions, onFlagStudent,
 }: ClassDetailProps) {
   const cls = classes.find(c => c.id === classId)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: '', course_name: '', grade_level: '', academic_term: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [rosterSearch, setRosterSearch] = useState('')
-  const [rosterOpen, setRosterOpen] = useState(false)
   const [showQr, setShowQr] = useState(false)
   const [qrFullscreen, setQrFullscreen] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
@@ -110,43 +110,13 @@ export function ClassDetail({
         <ArrowLeft className="w-3.5 h-3.5" />Back to Classes
       </button>
 
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6">
-        {editing ? (
-          <div className="space-y-4">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Input label="Section name *" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
-              <Input label="Course" value={form.course_name} onChange={(e) => setForm(f => ({ ...f, course_name: e.target.value }))} />
-              <Input label="Grade level" value={form.grade_level} onChange={(e) => setForm(f => ({ ...f, grade_level: e.target.value }))} />
-              <Input label="Term" value={form.academic_term} onChange={(e) => setForm(f => ({ ...f, academic_term: e.target.value }))} />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className="flex gap-2">
-              <Button size="sm" onClick={saveEdit} loading={saving}><Check className="w-4 h-4" />Save</Button>
-              <Button size="sm" variant="outline" onClick={() => setEditing(false)}><X className="w-4 h-4" />Cancel</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-bold text-ink">{classLabel(cls)}</h2>
-              </div>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {cls.grade_level && <span className="badge text-xs bg-surface-2 text-ink-faint border border-app">{cls.grade_level}</span>}
-                {cls.academic_term && <span className="badge text-xs bg-surface-2 text-ink-faint border border-app">{cls.academic_term}</span>}
-                {!cls.grade_level && !cls.academic_term && <span className="text-xs text-ink-muted">No grade level or term set</span>}
-              </div>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <Button size="sm" variant="outline" onClick={startEdit}><Pencil className="w-3.5 h-3.5" />Edit</Button>
-              {classTests.length === 0 && (
-                <Button size="sm" variant="outline" onClick={handleDelete} className="text-red-500 border-red-200 hover:bg-red-50">
-                  <Trash2 className="w-3.5 h-3.5" />Delete
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
+      <div>
+        <h2 className="text-xl font-bold text-ink">{classLabel(cls)}</h2>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {cls.grade_level && <span className="badge text-xs bg-surface-2 text-ink-faint border border-app">{cls.grade_level}</span>}
+          {cls.academic_term && <span className="badge text-xs bg-surface-2 text-ink-faint border border-app">{cls.academic_term}</span>}
+          {!cls.grade_level && !cls.academic_term && <span className="text-xs text-ink-muted">No grade level or term set</span>}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -168,102 +138,139 @@ export function ClassDetail({
         ))}
       </div>
 
+      {/* Class Settings — properties + roster together */}
       <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
         <button
           type="button"
-          onClick={() => setRosterOpen(v => !v)}
+          onClick={() => setSettingsOpen(v => !v)}
           className="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 text-left"
         >
-          <h3 className="text-base font-semibold text-ink flex items-center gap-2 flex-wrap">
-            <Users className="w-4 h-4 text-[var(--brand-primary)]" />Roster
-            <span className="text-xs font-normal text-ink-faint">{roster.length} enrolled</span>
+          <h3 className="text-base font-semibold text-ink flex items-center gap-2">
+            <SettingsIcon className="w-4 h-4 text-[var(--brand-primary)]" />Class Settings
           </h3>
-          <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 shrink-0 ${rosterOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 shrink-0 ${settingsOpen ? 'rotate-180' : ''}`} />
         </button>
 
-        {rosterOpen && (
-          <div className="border-t border-app px-5 sm:px-6 py-5">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 bg-app rounded-lg border border-app px-3 py-2">
-                  <code className="text-xs text-ink-soft flex-1 truncate font-mono">{enrollmentLink}</code>
-                  <button onClick={copyLink} className="text-[var(--brand-primary)] shrink-0" title="Copy enrollment link">
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
+        {settingsOpen && (
+          <div className="border-t border-app px-5 sm:px-6 py-5 space-y-6">
+            {/* Properties */}
+            <div>
+              <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Properties</p>
+              {editing ? (
+                <div className="space-y-4">
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Input label="Section name *" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+                    <Input label="Course" value={form.course_name} onChange={(e) => setForm(f => ({ ...f, course_name: e.target.value }))} />
+                    <Input label="Grade level" value={form.grade_level} onChange={(e) => setForm(f => ({ ...f, grade_level: e.target.value }))} />
+                    <Input label="Term" value={form.academic_term} onChange={(e) => setForm(f => ({ ...f, academic_term: e.target.value }))} />
+                  </div>
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={saveEdit} loading={saving}><Check className="w-4 h-4" />Save</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(false)}><X className="w-4 h-4" />Cancel</Button>
+                  </div>
                 </div>
-                {copied && <p className="text-xs text-emerald-600 mt-1.5">Copied!</p>}
-                <p className="text-xs text-ink-faint mt-2">Share this link with students — they sign in with Google to join this class's roster.</p>
-              </div>
-              <button
-                onClick={() => setShowQr(v => !v)}
-                className={`shrink-0 p-2.5 rounded-lg border transition-colors ${showQr ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'border-app text-ink-muted hover:text-ink-soft'}`}
-                title="Show QR code"
-              >
-                <QrCode className="w-4 h-4" />
-              </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={startEdit}><Pencil className="w-3.5 h-3.5" />Edit</Button>
+                  {classTests.length === 0 ? (
+                    <Button size="sm" variant="outline" onClick={handleDelete} className="text-red-500 border-red-200 hover:bg-red-50">
+                      <Trash2 className="w-3.5 h-3.5" />Delete class
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-ink-muted">Delete this class's {classTests.length} assessment{classTests.length !== 1 ? 's' : ''} first to delete it.</p>
+                  )}
+                </div>
+              )}
             </div>
 
-            {showQr && (
-              <div className="flex flex-col items-center gap-2 mb-5">
-                {qrDataUrl ? (
-                  <button onClick={() => setQrFullscreen(true)} className="group relative" title="Show fullscreen">
-                    <img src={qrDataUrl} alt="QR code for enrollment link" className="rounded-lg border border-app p-2 bg-white" width={160} height={160} />
-                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 rounded-lg transition-colors">
-                      <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </span>
-                  </button>
-                ) : (
-                  <div className="w-40 h-40 rounded-lg border border-app bg-app animate-pulse" />
-                )}
-                {qrDataUrl && (
-                  <button onClick={() => setQrFullscreen(true)} className="text-xs text-[var(--brand-primary)] hover:underline flex items-center gap-1">
-                    <Maximize2 className="w-3 h-3" />Show fullscreen
-                  </button>
-                )}
+            {/* Roster */}
+            <div className="pt-1 border-t border-app">
+              <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3 mt-5 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />Roster <span className="font-normal normal-case">({roster.length} enrolled)</span>
+              </p>
+              <div className="flex items-start gap-3 mb-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 bg-app rounded-lg border border-app px-3 py-2">
+                    <code className="text-xs text-ink-soft flex-1 truncate font-mono">{enrollmentLink}</code>
+                    <button onClick={copyLink} className="text-[var(--brand-primary)] shrink-0" title="Copy enrollment link">
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {copied && <p className="text-xs text-emerald-600 mt-1.5">Copied!</p>}
+                  <p className="text-xs text-ink-faint mt-2">Share this link with students — they sign in with Google to join this class's roster.</p>
+                </div>
+                <button
+                  onClick={() => setShowQr(v => !v)}
+                  className={`shrink-0 p-2.5 rounded-lg border transition-colors ${showQr ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'border-app text-ink-muted hover:text-ink-soft'}`}
+                  title="Show QR code"
+                >
+                  <QrCode className="w-4 h-4" />
+                </button>
               </div>
-            )}
 
-            {roster.length === 0 ? (
-              <p className="text-sm text-ink-muted">No students enrolled yet.</p>
-            ) : (
-              <>
-                {roster.length > 6 && (
-                  <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted w-3.5 h-3.5 pointer-events-none" />
-                    <input
-                      placeholder="Search students…"
-                      value={rosterSearch}
-                      onChange={(e) => setRosterSearch(e.target.value)}
-                      className="input-base pl-8 py-1.5 text-sm"
-                    />
-                  </div>
-                )}
-                {filteredRoster.length === 0 ? (
-                  <p className="text-sm text-ink-muted">No students match "{rosterSearch}".</p>
-                ) : (
-                  <div className="divide-y divide-app max-h-80 overflow-y-auto scrollbar-thin">
-                    {filteredRoster.map(s => (
-                      <div key={s.id} className="flex items-center justify-between gap-3 py-2.5">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-ink truncate">{s.student_name || s.student_email}</p>
-                          {s.student_name && <p className="text-xs text-ink-faint truncate">{s.student_email}</p>}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {onFlagStudent && (
-                            <button onClick={() => onFlagStudent(s.student_email, s.student_name)} className="text-ink-muted hover:text-[var(--brand-primary)]" title="Add to Focus">
-                              <Star className="w-3.5 h-3.5" />
+              {showQr && (
+                <div className="flex flex-col items-center gap-2 mb-5">
+                  {qrDataUrl ? (
+                    <button onClick={() => setQrFullscreen(true)} className="group relative" title="Show fullscreen">
+                      <img src={qrDataUrl} alt="QR code for enrollment link" className="rounded-lg border border-app p-2 bg-white" width={160} height={160} />
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 rounded-lg transition-colors">
+                        <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="w-40 h-40 rounded-lg border border-app bg-app animate-pulse" />
+                  )}
+                  {qrDataUrl && (
+                    <button onClick={() => setQrFullscreen(true)} className="text-xs text-[var(--brand-primary)] hover:underline flex items-center gap-1">
+                      <Maximize2 className="w-3 h-3" />Show fullscreen
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {roster.length === 0 ? (
+                <p className="text-sm text-ink-muted">No students enrolled yet.</p>
+              ) : (
+                <>
+                  {roster.length > 6 && (
+                    <div className="relative mb-3">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted w-3.5 h-3.5 pointer-events-none" />
+                      <input
+                        placeholder="Search students…"
+                        value={rosterSearch}
+                        onChange={(e) => setRosterSearch(e.target.value)}
+                        className="input-base pl-8 py-1.5 text-sm"
+                      />
+                    </div>
+                  )}
+                  {filteredRoster.length === 0 ? (
+                    <p className="text-sm text-ink-muted">No students match "{rosterSearch}".</p>
+                  ) : (
+                    <div className="divide-y divide-app max-h-80 overflow-y-auto scrollbar-thin">
+                      {filteredRoster.map(s => (
+                        <div key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-ink truncate">{s.student_name || s.student_email}</p>
+                            {s.student_name && <p className="text-xs text-ink-faint truncate">{s.student_email}</p>}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {onFlagStudent && (
+                              <button onClick={() => onFlagStudent(s.student_email, s.student_name)} className="text-ink-muted hover:text-[var(--brand-primary)]" title="Add to Focus">
+                                <Star className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button onClick={() => removeStudent(s.id)} className="text-ink-muted hover:text-red-500" title="Remove from roster">
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                          <button onClick={() => removeStudent(s.id)} className="text-ink-muted hover:text-red-500" title="Remove from roster">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

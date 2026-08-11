@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   ArrowLeft, Save, Settings, GraduationCap, Plus, Trash2, Upload, Download,
-  AlertCircle, GripVertical, BookMarked, Library, Lock, FileText, ChevronDown,
+  AlertCircle, GripVertical, BookMarked, Library, Lock, FileText, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useQuestionBank } from '../../hooks/useQuestionBank'
@@ -70,6 +70,12 @@ const fmtLocal = (s: string) => {
 
 const letters = ['A', 'B', 'C', 'D', 'E', 'F']
 
+const CREATION_STEPS: { key: 'basic' | 'behavior' | 'grading'; label: string }[] = [
+  { key: 'basic', label: 'Basic Info' },
+  { key: 'behavior', label: 'Behavior' },
+  { key: 'grading', label: 'Grading' },
+]
+
 export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId, onBack, onTestSaved }: TestAuthoringProps) {
   const [testId, setTestId] = useState<string | undefined>(initialTestId)
   const [loading, setLoading] = useState(!!initialTestId)
@@ -91,6 +97,14 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
   const [openSection, setOpenSection] = useState<'basic' | 'behavior' | 'grading' | null>('basic')
   const toggleSection = (key: 'basic' | 'behavior' | 'grading') => setOpenSection(prev => prev === key ? null : key)
+  const [creationStep, setCreationStep] = useState(0)
+  const isCreating = !testId
+  const isSectionVisible = (key: 'basic' | 'behavior' | 'grading') =>
+    isCreating ? CREATION_STEPS[creationStep].key === key : openSection === key
+  const canAdvanceStep = () => {
+    if (CREATION_STEPS[creationStep].key === 'basic') return settings.title.trim().length > 0
+    return true
+  }
   const { items: bankItems, saveToBank, deleteFromBank } = useQuestionBank(teacherId)
 
   const update = (key: keyof SettingsForm, value: any) => setSettings(prev => ({ ...prev, [key]: value }))
@@ -409,19 +423,39 @@ Note: Mark correct answers with * or put correct answer first (A.)
       <div className="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
         {/* Left: settings */}
         <div className="lg:sticky lg:top-24 space-y-4">
+          {isCreating && (
+            <div className="flex items-center mb-2">
+              {CREATION_STEPS.map(({ key, label }, i) => (
+                <div key={key} className="flex items-center flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+                      i < creationStep ? 'bg-emerald-500 text-white' :
+                      i === creationStep ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' :
+                      'bg-surface-2 text-ink-muted'
+                    }`}>
+                      {i < creationStep ? '✓' : i + 1}
+                    </div>
+                    <span className={`text-xs font-medium hidden sm:block ${i === creationStep ? 'text-[var(--brand-primary)]' : 'text-ink-muted'}`}>{label}</span>
+                  </div>
+                  {i < CREATION_STEPS.length - 1 && <div className={`flex-1 h-0.5 mx-2 rounded ${i < creationStep ? 'bg-emerald-400' : 'bg-surface-2'}`} />}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
             <button
               type="button"
-              onClick={() => toggleSection('basic')}
-              className="w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left"
+              onClick={() => !isCreating && toggleSection('basic')}
+              className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left ${isCreating ? 'cursor-default' : ''}`}
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
                 <FileText className="w-4 h-4 text-[var(--brand-primary)]" />
                 Basic Info
               </span>
-              <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'basic' ? 'rotate-180' : ''}`} />
+              {!isCreating && <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'basic' ? 'rotate-180' : ''}`} />}
             </button>
-            {openSection === 'basic' && (
+            {isSectionVisible('basic') && (
               <div className="border-t border-app px-5 sm:px-6 py-5 space-y-4">
                 <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
                 <Input
@@ -466,16 +500,16 @@ Note: Mark correct answers with * or put correct answer first (A.)
           <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
             <button
               type="button"
-              onClick={() => toggleSection('behavior')}
-              className="w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left"
+              onClick={() => !isCreating && toggleSection('behavior')}
+              className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left ${isCreating ? 'cursor-default' : ''}`}
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
                 <Settings className="w-4 h-4 text-[var(--brand-primary)]" />
                 Assessment Behavior
               </span>
-              <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'behavior' ? 'rotate-180' : ''}`} />
+              {!isCreating && <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'behavior' ? 'rotate-180' : ''}`} />}
             </button>
-            {openSection === 'behavior' && (
+            {isSectionVisible('behavior') && (
               <div className="border-t border-app px-5 sm:px-6 py-5 space-y-3">
                 {[
                   { key: 'showResults' as const, label: 'Show results to students after submission', desc: 'Students will see their score, grade, and question review' },
@@ -552,16 +586,16 @@ Note: Mark correct answers with * or put correct answer first (A.)
           <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
             <button
               type="button"
-              onClick={() => toggleSection('grading')}
-              className="w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left"
+              onClick={() => !isCreating && toggleSection('grading')}
+              className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left ${isCreating ? 'cursor-default' : ''}`}
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
                 <GraduationCap className="w-4 h-4 text-[var(--brand-primary)]" />
                 Grade Boundaries (%)
               </span>
-              <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'grading' ? 'rotate-180' : ''}`} />
+              {!isCreating && <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'grading' ? 'rotate-180' : ''}`} />}
             </button>
-            {openSection === 'grading' && (
+            {isSectionVisible('grading') && (
               <div className="border-t border-app px-5 sm:px-6 py-5 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   {[
@@ -604,10 +638,31 @@ Note: Mark correct answers with * or put correct answer first (A.)
               <p className="text-sm text-emerald-700 font-medium">Saved</p>
             </div>
           )}
-          <Button onClick={handleSaveSettings} loading={savingSettings} className="w-full">
-            <Save className="w-4 h-4" />
-            {testId ? 'Save Details' : 'Create Assessment'}
-          </Button>
+
+          {isCreating ? (
+            <div className="flex items-center justify-between gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setCreationStep(s => Math.max(0, s - 1))}
+                disabled={creationStep === 0}
+              >
+                Back
+              </Button>
+              {creationStep < CREATION_STEPS.length - 1 ? (
+                <Button onClick={() => canAdvanceStep() && setCreationStep(s => s + 1)} disabled={!canAdvanceStep()}>
+                  Continue<ChevronRight className="w-4 h-4" />
+                </Button>
+              ) : (
+                <Button onClick={handleSaveSettings} loading={savingSettings}>
+                  <Save className="w-4 h-4" />Create Assessment
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Button onClick={handleSaveSettings} loading={savingSettings} className="w-full">
+              <Save className="w-4 h-4" />Save Details
+            </Button>
+          )}
         </div>
 
         {/* Right: questions */}
