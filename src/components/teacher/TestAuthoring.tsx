@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
-  ArrowLeft, Save, Settings, GraduationCap, Plus, Trash2, Upload, Download,
-  AlertCircle, GripVertical, BookMarked, Library, Lock, FileText, ChevronDown, ChevronRight,
+  ArrowLeft, Save, Plus, Trash2, Upload, Download,
+  AlertCircle, GripVertical, BookMarked, Library, Lock, FileText, Settings as SettingsIcon,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useQuestionBank } from '../../hooks/useQuestionBank'
@@ -9,7 +9,6 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { ClassPicker } from './ClassPicker'
-import { BlockedStudentsPanel } from './BlockedStudentsPanel'
 import { QuestionBankPicker } from './QuestionBankPicker'
 import type { Test } from '../../lib/supabase'
 
@@ -19,6 +18,7 @@ interface TestAuthoringProps {
   initialClassId?: string
   onBack: () => void
   onTestSaved: () => void
+  onOpenSettings?: (testId: string) => void
 }
 
 interface QuestionOption {
@@ -70,13 +70,7 @@ const fmtLocal = (s: string) => {
 
 const letters = ['A', 'B', 'C', 'D', 'E', 'F']
 
-const CREATION_STEPS: { key: 'basic' | 'behavior' | 'grading'; label: string }[] = [
-  { key: 'basic', label: 'Basic Info' },
-  { key: 'behavior', label: 'Behavior' },
-  { key: 'grading', label: 'Grading' },
-]
-
-export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId, onBack, onTestSaved }: TestAuthoringProps) {
+export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId, onBack, onTestSaved, onOpenSettings }: TestAuthoringProps) {
   const [testId, setTestId] = useState<string | undefined>(initialTestId)
   const [loading, setLoading] = useState(!!initialTestId)
   const [classId, setClassId] = useState(initialClassId || '')
@@ -95,16 +89,6 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const [showBankPicker, setShowBankPicker] = useState(false)
   const [savingToBank, setSavingToBank] = useState<string | null>(null)
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
-  const [openSection, setOpenSection] = useState<'basic' | 'behavior' | 'grading' | null>('basic')
-  const toggleSection = (key: 'basic' | 'behavior' | 'grading') => setOpenSection(prev => prev === key ? null : key)
-  const [creationStep, setCreationStep] = useState(0)
-  const isCreating = !testId
-  const isSectionVisible = (key: 'basic' | 'behavior' | 'grading') =>
-    isCreating ? CREATION_STEPS[creationStep].key === key : openSection === key
-  const canAdvanceStep = () => {
-    if (CREATION_STEPS[creationStep].key === 'basic') return settings.title.trim().length > 0
-    return true
-  }
   const { items: bankItems, saveToBank, deleteFromBank } = useQuestionBank(teacherId)
 
   const update = (key: keyof SettingsForm, value: any) => setSettings(prev => ({ ...prev, [key]: value }))
@@ -410,222 +394,69 @@ Note: Mark correct answers with * or put correct answer first (A.)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 min-w-0">
-        <Button variant="ghost" onClick={onBack} size="sm">
-          <ArrowLeft className="w-4 h-4" />Back
-        </Button>
-        <div className="min-w-0">
-          <p className="text-base font-semibold text-ink truncate">{settings.title || 'New assessment'}</p>
-          <p className="text-xs text-ink-faint">{testId ? `${questions.length} question${questions.length !== 1 ? 's' : ''}` : 'Not saved yet'}</p>
+      <div className="flex items-center justify-between gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" onClick={onBack} size="sm">
+            <ArrowLeft className="w-4 h-4" />Back
+          </Button>
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-ink truncate">{settings.title || 'New assessment'}</p>
+            <p className="text-xs text-ink-faint">{testId ? `${questions.length} question${questions.length !== 1 ? 's' : ''}` : 'Not saved yet'}</p>
+          </div>
         </div>
+        {testId && onOpenSettings && (
+          <Button variant="outline" size="sm" onClick={() => onOpenSettings(testId)}>
+            <SettingsIcon className="w-4 h-4" /><span className="hidden sm:inline">Settings</span>
+          </Button>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
-        {/* Left: settings */}
+        {/* Left: basic info */}
         <div className="lg:sticky lg:top-24 space-y-4">
-          {isCreating && (
-            <div className="flex items-center mb-2">
-              {CREATION_STEPS.map(({ key, label }, i) => (
-                <div key={key} className="flex items-center flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
-                      i < creationStep ? 'bg-emerald-500 text-white' :
-                      i === creationStep ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' :
-                      'bg-surface-2 text-ink-muted'
-                    }`}>
-                      {i < creationStep ? '✓' : i + 1}
-                    </div>
-                    <span className={`text-xs font-medium hidden sm:block ${i === creationStep ? 'text-[var(--brand-primary)]' : 'text-ink-muted'}`}>{label}</span>
-                  </div>
-                  {i < CREATION_STEPS.length - 1 && <div className={`flex-1 h-0.5 mx-2 rounded ${i < creationStep ? 'bg-emerald-400' : 'bg-surface-2'}`} />}
-                </div>
-              ))}
+          <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-5 sm:px-6 py-4 border-b border-app text-sm font-semibold text-ink-soft">
+              <FileText className="w-4 h-4 text-[var(--brand-primary)]" />
+              Basic Info
             </div>
-          )}
-
-          <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
-            <button
-              type="button"
-              onClick={() => !isCreating && toggleSection('basic')}
-              className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left ${isCreating ? 'cursor-default' : ''}`}
-            >
-              <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-                <FileText className="w-4 h-4 text-[var(--brand-primary)]" />
-                Basic Info
-              </span>
-              {!isCreating && <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'basic' ? 'rotate-180' : ''}`} />}
-            </button>
-            {isSectionVisible('basic') && (
-              <div className="border-t border-app px-5 sm:px-6 py-5 space-y-4">
-                <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
+            <div className="px-5 sm:px-6 py-5 space-y-4">
+              <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
+              <Input
+                label="Assessment Title *"
+                placeholder="e.g. Midterm Mathematics Exam"
+                value={settings.title}
+                onChange={(e) => update('title', e.target.value)}
+                required
+              />
+              <Input
+                label="Description"
+                placeholder="Brief description (optional)"
+                value={settings.description}
+                onChange={(e) => update('description', e.target.value)}
+              />
+              <Input
+                label="Duration (minutes)"
+                type="number"
+                placeholder="Leave empty for no time limit"
+                value={settings.durationMinutes}
+                onChange={(e) => update('durationMinutes', e.target.value)}
+                min="1"
+              />
+              <div className="grid grid-cols-2 gap-3">
                 <Input
-                  label="Assessment Title *"
-                  placeholder="e.g. Midterm Mathematics Exam"
-                  value={settings.title}
-                  onChange={(e) => update('title', e.target.value)}
-                  required
+                  label="Start Time"
+                  type="datetime-local"
+                  value={settings.startTime}
+                  onChange={(e) => update('startTime', e.target.value)}
                 />
                 <Input
-                  label="Description"
-                  placeholder="Brief description (optional)"
-                  value={settings.description}
-                  onChange={(e) => update('description', e.target.value)}
-                />
-                <Input
-                  label="Duration (minutes)"
-                  type="number"
-                  placeholder="Leave empty for no time limit"
-                  value={settings.durationMinutes}
-                  onChange={(e) => update('durationMinutes', e.target.value)}
-                  min="1"
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    label="Start Time"
-                    type="datetime-local"
-                    value={settings.startTime}
-                    onChange={(e) => update('startTime', e.target.value)}
-                  />
-                  <Input
-                    label="End Time"
-                    type="datetime-local"
-                    value={settings.endTime}
-                    onChange={(e) => update('endTime', e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
-            <button
-              type="button"
-              onClick={() => !isCreating && toggleSection('behavior')}
-              className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left ${isCreating ? 'cursor-default' : ''}`}
-            >
-              <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-                <Settings className="w-4 h-4 text-[var(--brand-primary)]" />
-                Assessment Behavior
-              </span>
-              {!isCreating && <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'behavior' ? 'rotate-180' : ''}`} />}
-            </button>
-            {isSectionVisible('behavior') && (
-              <div className="border-t border-app px-5 sm:px-6 py-5 space-y-3">
-                {[
-                  { key: 'showResults' as const, label: 'Show results to students after submission', desc: 'Students will see their score, grade, and question review' },
-                  { key: 'allowNavigationBack' as const, label: 'Allow backward navigation', desc: 'Students can go back to previous questions during the test' },
-                ].map(({ key, label, desc }) => (
-                  <label key={key} className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={settings[key]}
-                      onChange={(e) => update(key, e.target.checked)}
-                      className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-ink-soft">{label}</p>
-                      <p className="text-xs text-ink-faint mt-0.5">{desc}</p>
-                    </div>
-                  </label>
-                ))}
-                <label className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.perQuestionTiming}
-                    onChange={(e) => update('perQuestionTiming', e.target.checked)}
-                    className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-ink-soft">Per-question timing</p>
-                    <p className="text-xs text-ink-faint mt-0.5">Each question has its own timer. Questions auto-advance when time expires.</p>
-                  </div>
-                </label>
-                {settings.perQuestionTiming && (
-                  <div className="ml-7">
-                    <Input
-                      label="Default time per question (seconds)"
-                      type="number"
-                      min="5"
-                      value={settings.timePerQuestion}
-                      onChange={(e) => update('timePerQuestion', e.target.value)}
-                    />
-                  </div>
-                )}
-                <label className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.requireGoogleAuth}
-                    onChange={(e) => update('requireGoogleAuth', e.target.checked)}
-                    className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-ink-soft">Require Google sign-in before entry</p>
-                    <p className="text-xs text-ink-faint mt-0.5">
-                      Students must sign in with Google before entering the code.{' '}
-                      {classId
-                        ? "They'll also need to be enrolled in this class's roster (share the enrollment link from the class page)."
-                        : 'This assessment has no class, so only identity is checked — there\'s no roster to enroll in.'}
-                      {' '}You can block specific students below, for this assessment only.
-                    </p>
-                  </div>
-                </label>
-
-                {settings.requireGoogleAuth && (
-                  <div className="ml-7 pt-1">
-                    {testId ? (
-                      <BlockedStudentsPanel testId={testId} classId={classId || undefined} />
-                    ) : (
-                      <p className="text-xs text-ink-muted">Save the assessment to block specific students.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
-            <button
-              type="button"
-              onClick={() => !isCreating && toggleSection('grading')}
-              className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left ${isCreating ? 'cursor-default' : ''}`}
-            >
-              <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-                <GraduationCap className="w-4 h-4 text-[var(--brand-primary)]" />
-                Grade Boundaries (%)
-              </span>
-              {!isCreating && <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'grading' ? 'rotate-180' : ''}`} />}
-            </button>
-            {isSectionVisible('grading') && (
-              <div className="border-t border-app px-5 sm:px-6 py-5 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { key: 'aGrade' as const, label: 'A minimum' },
-                    { key: 'bGrade' as const, label: 'B minimum' },
-                    { key: 'cGrade' as const, label: 'C minimum' },
-                    { key: 'dGrade' as const, label: 'D minimum' },
-                  ].map(({ key, label }) => (
-                    <Input
-                      key={key}
-                      label={label}
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={settings[key]}
-                      onChange={(e) => update(key, e.target.value)}
-                    />
-                  ))}
-                </div>
-                <Input
-                  label="Passing grade minimum (%)"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={settings.passingGrade}
-                  onChange={(e) => update('passingGrade', e.target.value)}
-                  helper="Scores below this are considered failing (F)"
+                  label="End Time"
+                  type="datetime-local"
+                  value={settings.endTime}
+                  onChange={(e) => update('endTime', e.target.value)}
                 />
               </div>
-            )}
+            </div>
           </div>
 
           {settingsError && (
@@ -639,29 +470,12 @@ Note: Mark correct answers with * or put correct answer first (A.)
             </div>
           )}
 
-          {isCreating ? (
-            <div className="flex items-center justify-between gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setCreationStep(s => Math.max(0, s - 1))}
-                disabled={creationStep === 0}
-              >
-                Back
-              </Button>
-              {creationStep < CREATION_STEPS.length - 1 ? (
-                <Button onClick={() => canAdvanceStep() && setCreationStep(s => s + 1)} disabled={!canAdvanceStep()}>
-                  Continue<ChevronRight className="w-4 h-4" />
-                </Button>
-              ) : (
-                <Button onClick={handleSaveSettings} loading={savingSettings}>
-                  <Save className="w-4 h-4" />Create Assessment
-                </Button>
-              )}
-            </div>
-          ) : (
-            <Button onClick={handleSaveSettings} loading={savingSettings} className="w-full">
-              <Save className="w-4 h-4" />Save Details
-            </Button>
+          <Button onClick={handleSaveSettings} loading={savingSettings} className="w-full">
+            <Save className="w-4 h-4" />
+            {testId ? 'Save Details' : 'Create Assessment'}
+          </Button>
+          {!testId && (
+            <p className="text-xs text-ink-faint text-center">Behavior, grading, and Google sign-in options are configured from Test Settings after you create the assessment.</p>
           )}
         </div>
 

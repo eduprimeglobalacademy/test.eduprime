@@ -14,6 +14,8 @@ import { TestPreview } from './TestPreview'
 import { TestReports } from './TestReports'
 import { ClassGrid } from './ClassGrid'
 import { ClassDetail } from './ClassDetail'
+import { ClassSettings } from './ClassSettings'
+import { TestSettings } from './TestSettings'
 import { DashboardHome } from './DashboardHome'
 import { AnalyticsOverview } from './AnalyticsOverview'
 import { TeacherSettings } from './TeacherSettings'
@@ -22,7 +24,7 @@ import { useClasses } from '../../hooks/useClasses'
 import { useFocusItems } from '../../hooks/useFocusItems'
 import type { Test, Teacher } from '../../lib/supabase'
 
-type ViewMode = 'dashboard' | 'classes' | 'class-detail' | 'assessments' | 'analytics' | 'focus' | 'settings' | 'preview' | 'reports' | 'author'
+type ViewMode = 'dashboard' | 'classes' | 'class-detail' | 'class-settings' | 'assessments' | 'analytics' | 'focus' | 'settings' | 'preview' | 'reports' | 'author' | 'test-settings'
 type SidebarSection = 'dashboard' | 'classes' | 'assessments' | 'analytics' | 'focus' | 'settings'
 
 export function TeacherDashboard() {
@@ -39,6 +41,8 @@ export function TeacherDashboard() {
   const [selectedTestId, setSelectedTestId] = useState<string>('')
   const [authoringTestId, setAuthoringTestId] = useState<string | undefined>(undefined)
   const [authoringClassId, setAuthoringClassId] = useState<string | undefined>(undefined)
+  const [settingsTestId, setSettingsTestId] = useState<string | undefined>(undefined)
+  const [settingsClassId, setSettingsClassId] = useState<string>('')
   const [returnTo, setReturnTo] = useState<ViewMode>('dashboard')
   const { classes, createClass, updateClass, deleteClass } = useClasses(teacher?.id)
   const { items: focusItems, addStudentFocus, addClassFocus, removeFocus } = useFocusItems(teacher?.id)
@@ -61,7 +65,7 @@ export function TeacherDashboard() {
     }
   }
 
-  const effectiveViewMode = viewMode === 'author' ? returnTo : viewMode
+  const effectiveViewMode = (viewMode === 'author' || viewMode === 'test-settings') ? returnTo : viewMode === 'class-settings' ? 'class-detail' : viewMode
   const sidebarSection: SidebarSection =
     effectiveViewMode === 'assessments' ? 'assessments' :
     effectiveViewMode === 'analytics' ? 'analytics' :
@@ -91,6 +95,11 @@ export function TeacherDashboard() {
     setViewMode(returnTo)
     fetchData()
   }
+  const openTestSettings = (id: string) => { setSettingsTestId(id); setViewMode('test-settings') }
+  const backFromTestSettings = () => { setViewMode('author'); fetchData() }
+  const openClassSettings = (id: string) => { setSettingsClassId(id); setViewMode('class-settings') }
+  const backFromClassSettings = () => { setViewMode('class-detail'); fetchData() }
+  const classDeletedFromSettings = () => { setSelectedClassId(''); setViewMode('classes'); fetchData() }
 
   if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
   if (viewMode === 'preview' && selectedTestId) return <TestPreview testId={selectedTestId} onBack={handleBackFromDetail} />
@@ -282,15 +291,26 @@ export function TeacherDashboard() {
               classId={selectedClassId}
               classes={classes}
               tests={tests}
-              updateClass={updateClass}
-              deleteClass={deleteClass}
               onBack={goToClasses}
               onTestUpdated={fetchData}
               onCreateAssessment={handleAuthorNew}
+              onOpenSettings={openClassSettings}
               onPreview={handlePreview}
               onEdit={(test) => handleAuthorExisting(test.id)}
               onReports={handleReports}
               onEditQuestions={handleAuthorExisting}
+            />
+          )}
+
+          {viewMode === 'class-settings' && settingsClassId && (
+            <ClassSettings
+              classId={settingsClassId}
+              classes={classes}
+              tests={tests}
+              updateClass={updateClass}
+              deleteClass={deleteClass}
+              onBack={backFromClassSettings}
+              onDeleted={classDeletedFromSettings}
               onFlagStudent={flagStudent}
             />
           )}
@@ -358,7 +378,18 @@ export function TeacherDashboard() {
           )}
 
           {viewMode === 'author' && teacher && (
-            <TestAuthoring testId={authoringTestId} teacherId={teacher.id} initialClassId={authoringClassId} onBack={handleBackFromDetail} onTestSaved={fetchData} />
+            <TestAuthoring
+              testId={authoringTestId}
+              teacherId={teacher.id}
+              initialClassId={authoringClassId}
+              onBack={handleBackFromDetail}
+              onTestSaved={fetchData}
+              onOpenSettings={openTestSettings}
+            />
+          )}
+
+          {viewMode === 'test-settings' && settingsTestId && (
+            <TestSettings testId={settingsTestId} onBack={backFromTestSettings} onSaved={fetchData} />
           )}
         </div>
       </div>
