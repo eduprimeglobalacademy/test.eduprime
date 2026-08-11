@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
-  ArrowLeft, Save, Plus, Trash2, Upload, Download,
-  AlertCircle, GripVertical, BookMarked, Library, Lock, FileText, Settings as SettingsIcon,
+  ArrowLeft, ArrowRight, Save, Plus, Trash2, Upload, Download,
+  AlertCircle, GripVertical, BookMarked, Library, FileText, Settings as SettingsIcon, Eye, BarChart3,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useQuestionBank } from '../../hooks/useQuestionBank'
@@ -19,6 +19,8 @@ interface TestAuthoringProps {
   onBack: () => void
   onTestSaved: () => void
   onOpenSettings?: (testId: string) => void
+  onPreview?: (testId: string) => void
+  onReports?: (testId: string) => void
 }
 
 interface QuestionOption {
@@ -70,10 +72,11 @@ const fmtLocal = (s: string) => {
 
 const letters = ['A', 'B', 'C', 'D', 'E', 'F']
 
-export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId, onBack, onTestSaved, onOpenSettings }: TestAuthoringProps) {
+export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId, onBack, onTestSaved, onOpenSettings, onPreview, onReports }: TestAuthoringProps) {
   const [testId, setTestId] = useState<string | undefined>(initialTestId)
   const [loading, setLoading] = useState(!!initialTestId)
   const [classId, setClassId] = useState(initialClassId || '')
+  const [testStatus, setTestStatus] = useState<string | undefined>(undefined)
   const [settings, setSettings] = useState<SettingsForm>(EMPTY_SETTINGS)
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsError, setSettingsError] = useState('')
@@ -89,6 +92,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const [showBankPicker, setShowBankPicker] = useState(false)
   const [savingToBank, setSavingToBank] = useState<string | null>(null)
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
+  const [basicInfoOpen, setBasicInfoOpen] = useState(!initialTestId)
   const { items: bankItems, saveToBank, deleteFromBank } = useQuestionBank(teacherId)
 
   const update = (key: keyof SettingsForm, value: any) => setSettings(prev => ({ ...prev, [key]: value }))
@@ -117,6 +121,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
           passingGrade: test.grading_config?.passingGrade?.toString() || '60',
         })
         setClassId(test.class_id || '')
+        setTestStatus(test.status)
       }
       setLoading(false)
       fetchQuestions(initialTestId)
@@ -177,6 +182,8 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
         }]).select().single()
         if (createError) throw createError
         setTestId(data.id)
+        setTestStatus(data.status)
+        setBasicInfoOpen(false)
       } else {
         const { error: updateError } = await supabase.from('tests').update({
           ...buildPayload(),
@@ -404,90 +411,126 @@ Note: Mark correct answers with * or put correct answer first (A.)
             <p className="text-xs text-ink-faint">{testId ? `${questions.length} question${questions.length !== 1 ? 's' : ''}` : 'Not saved yet'}</p>
           </div>
         </div>
-        {testId && onOpenSettings && (
-          <Button variant="outline" size="sm" onClick={() => onOpenSettings(testId)}>
-            <SettingsIcon className="w-4 h-4" /><span className="hidden sm:inline">Settings</span>
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {testId && testStatus === 'live' && onPreview && (
+            <Button variant="outline" size="sm" onClick={() => onPreview(testId)}>
+              <Eye className="w-4 h-4" /><span className="hidden sm:inline">Preview</span>
+            </Button>
+          )}
+          {testId && onReports && (
+            <Button variant="outline" size="sm" onClick={() => onReports(testId)}>
+              <BarChart3 className="w-4 h-4" /><span className="hidden sm:inline">Reports</span>
+            </Button>
+          )}
+          {testId && onOpenSettings && (
+            <Button variant="outline" size="sm" onClick={() => onOpenSettings(testId)}>
+              <SettingsIcon className="w-4 h-4" /><span className="hidden sm:inline">Settings</span>
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
-        {/* Left: basic info */}
-        <div className="lg:sticky lg:top-24 space-y-4">
+      <div className={testId && !basicInfoOpen ? 'space-y-6' : 'grid lg:grid-cols-[380px_1fr] gap-6 items-start'}>
+        {/* Basic info */}
+        <div className={testId && !basicInfoOpen ? 'w-full' : 'lg:sticky lg:top-24 space-y-4'}>
           <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
-            <div className="flex items-center gap-2 px-5 sm:px-6 py-4 border-b border-app text-sm font-semibold text-ink-soft">
-              <FileText className="w-4 h-4 text-[var(--brand-primary)]" />
-              Basic Info
-            </div>
-            <div className="px-5 sm:px-6 py-5 space-y-4">
-              <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
-              <Input
-                label="Assessment Title *"
-                placeholder="e.g. Midterm Mathematics Exam"
-                value={settings.title}
-                onChange={(e) => update('title', e.target.value)}
-                required
-              />
-              <Input
-                label="Description"
-                placeholder="Brief description (optional)"
-                value={settings.description}
-                onChange={(e) => update('description', e.target.value)}
-              />
-              <Input
-                label="Duration (minutes)"
-                type="number"
-                placeholder="Leave empty for no time limit"
-                value={settings.durationMinutes}
-                onChange={(e) => update('durationMinutes', e.target.value)}
-                min="1"
-              />
-              <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => testId && setBasicInfoOpen(v => !v)}
+              className={`w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-4 text-left ${testId ? '' : 'cursor-default'} ${testId && !basicInfoOpen ? '' : 'border-b border-app'}`}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft min-w-0">
+                <FileText className="w-4 h-4 text-[var(--brand-primary)] shrink-0" />
+                {testId && !basicInfoOpen ? (
+                  <span className="truncate">Basic Info — {settings.title}</span>
+                ) : 'Basic Info'}
+              </span>
+              {testId && (
+                <ArrowRight className={`w-4 h-4 text-ink-muted shrink-0 transition-transform duration-200 ${basicInfoOpen ? 'rotate-90' : ''}`} />
+              )}
+            </button>
+            {(basicInfoOpen || !testId) && (
+              <div className="px-5 sm:px-6 py-5 space-y-4">
+                <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
                 <Input
-                  label="Start Time"
-                  type="datetime-local"
-                  value={settings.startTime}
-                  onChange={(e) => update('startTime', e.target.value)}
+                  label="Assessment Title *"
+                  placeholder="e.g. Midterm Mathematics Exam"
+                  value={settings.title}
+                  onChange={(e) => update('title', e.target.value)}
+                  required
                 />
                 <Input
-                  label="End Time"
-                  type="datetime-local"
-                  value={settings.endTime}
-                  onChange={(e) => update('endTime', e.target.value)}
+                  label="Description"
+                  placeholder="Brief description (optional)"
+                  value={settings.description}
+                  onChange={(e) => update('description', e.target.value)}
                 />
+                <Input
+                  label="Duration (minutes)"
+                  type="number"
+                  placeholder="Leave empty for no time limit"
+                  value={settings.durationMinutes}
+                  onChange={(e) => update('durationMinutes', e.target.value)}
+                  min="1"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Start Time"
+                    type="datetime-local"
+                    value={settings.startTime}
+                    onChange={(e) => update('startTime', e.target.value)}
+                  />
+                  <Input
+                    label="End Time"
+                    type="datetime-local"
+                    value={settings.endTime}
+                    onChange={(e) => update('endTime', e.target.value)}
+                  />
+                </div>
+                {settingsError && (
+                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                    <p className="text-sm text-red-600">{settingsError}</p>
+                  </div>
+                )}
+                {settingsSaved && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                    <p className="text-sm text-emerald-700 font-medium">Saved</p>
+                  </div>
+                )}
+                <Button onClick={handleSaveSettings} loading={savingSettings} className="w-full">
+                  <Save className="w-4 h-4" />
+                  {testId ? 'Save Details' : 'Create Assessment'}
+                </Button>
+                {!testId && (
+                  <p className="text-xs text-ink-faint text-center">Behavior, grading, and Google sign-in options are configured from Test Settings after you create the assessment.</p>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
-          {settingsError && (
-            <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
-              <p className="text-sm text-red-600">{settingsError}</p>
-            </div>
-          )}
-          {settingsSaved && (
-            <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
-              <p className="text-sm text-emerald-700 font-medium">Saved</p>
-            </div>
-          )}
-
-          <Button onClick={handleSaveSettings} loading={savingSettings} className="w-full">
-            <Save className="w-4 h-4" />
-            {testId ? 'Save Details' : 'Create Assessment'}
-          </Button>
-          {!testId && (
-            <p className="text-xs text-ink-faint text-center">Behavior, grading, and Google sign-in options are configured from Test Settings after you create the assessment.</p>
+          {testId && onOpenSettings && (
+            <button
+              onClick={() => onOpenSettings(testId)}
+              className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl border border-[var(--brand-primary-soft)] bg-[var(--brand-primary-soft)] hover:brightness-95 transition-all text-left"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center shrink-0">
+                  <SettingsIcon className="w-4 h-4 text-[var(--brand-primary)]" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--brand-primary-darker)]">Test Settings</p>
+                  <p className="text-xs text-[var(--brand-primary-dark)]">Results, timing, Google sign-in gate, grading</p>
+                </div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-[var(--brand-primary)] shrink-0" />
+            </button>
           )}
         </div>
 
-        {/* Right: questions */}
-        <div>
-          {!testId ? (
-            <div className="bg-surface rounded-2xl border border-app shadow-sm p-12 text-center">
-              <Lock className="w-10 h-10 text-ink-muted mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-ink mb-2">Save assessment details first</h3>
-              <p className="text-ink-faint text-sm">Add a title on the left and create the assessment to start adding questions.</p>
-            </div>
-          ) : questionsLoading ? (
+        {/* Questions — only exists once the assessment is saved */}
+        {testId && (
+          <div>
+            {questionsLoading ? (
             <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
           ) : (
             <>
@@ -687,8 +730,9 @@ Note: Mark correct answers with * or put correct answer first (A.)
                 </div>
               )}
             </>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       <QuestionBankPicker

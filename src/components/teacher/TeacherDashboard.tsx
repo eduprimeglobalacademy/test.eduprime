@@ -100,6 +100,12 @@ export function TeacherDashboard() {
   const openClassSettings = (id: string) => { setSettingsClassId(id); setViewMode('class-settings') }
   const backFromClassSettings = () => { setViewMode('class-detail'); fetchData() }
   const classDeletedFromSettings = () => { setSelectedClassId(''); setViewMode('classes'); fetchData() }
+  const testDeletedFromSettings = () => {
+    setAuthoringTestId(undefined)
+    setSettingsTestId(undefined)
+    setViewMode(returnTo)
+    fetchData()
+  }
 
   if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
   if (viewMode === 'preview' && selectedTestId) return <TestPreview testId={selectedTestId} onBack={handleBackFromDetail} />
@@ -295,10 +301,7 @@ export function TeacherDashboard() {
               onTestUpdated={fetchData}
               onCreateAssessment={handleAuthorNew}
               onOpenSettings={openClassSettings}
-              onPreview={handlePreview}
               onEdit={(test) => handleAuthorExisting(test.id)}
-              onReports={handleReports}
-              onEditQuestions={handleAuthorExisting}
             />
           )}
 
@@ -351,10 +354,7 @@ export function TeacherDashboard() {
               <TestDashboard
                 tests={tests}
                 onTestUpdated={fetchData}
-                onPreview={handlePreview}
                 onEdit={(test) => handleAuthorExisting(test.id)}
-                onReports={handleReports}
-                onEditQuestions={handleAuthorExisting}
               />
             </>
           )}
@@ -385,11 +385,13 @@ export function TeacherDashboard() {
               onBack={handleBackFromDetail}
               onTestSaved={fetchData}
               onOpenSettings={openTestSettings}
+              onPreview={handlePreview}
+              onReports={handleReports}
             />
           )}
 
           {viewMode === 'test-settings' && settingsTestId && (
-            <TestSettings testId={settingsTestId} onBack={backFromTestSettings} onSaved={fetchData} />
+            <TestSettings testId={settingsTestId} onBack={backFromTestSettings} onSaved={fetchData} onDeleted={testDeletedFromSettings} />
           )}
         </div>
       </div>

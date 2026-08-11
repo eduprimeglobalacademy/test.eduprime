@@ -12,15 +12,12 @@ interface ClassDetailProps {
   onTestUpdated: () => void
   onCreateAssessment: (classId: string) => void
   onOpenSettings: (classId: string) => void
-  onPreview: (testId: string) => void
   onEdit: (test: Test) => void
-  onReports: (testId: string) => void
-  onEditQuestions: (testId: string) => void
 }
 
 export function ClassDetail({
   classId, classes, tests, onBack, onTestUpdated,
-  onCreateAssessment, onOpenSettings, onPreview, onEdit, onReports, onEditQuestions,
+  onCreateAssessment, onOpenSettings, onEdit,
 }: ClassDetailProps) {
   const cls = classes.find(c => c.id === classId)
 
@@ -80,10 +77,7 @@ export function ClassDetail({
       <TestDashboard
         tests={classTests}
         onTestUpdated={onTestUpdated}
-        onPreview={onPreview}
         onEdit={onEdit}
-        onReports={onReports}
-        onEditQuestions={onEditQuestions}
       />
     </div>
   )

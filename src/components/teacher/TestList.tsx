@@ -1,52 +1,32 @@
 import { useState } from 'react'
-import { Eye, BarChart3, Copy, ExternalLink, Calendar, Clock, FileText, Trash2, Edit2, Play, XCircle, RotateCcw, Layers, Users } from 'lucide-react'
+import { Copy, ExternalLink, Calendar, Clock, Play, XCircle, RotateCcw, Layers } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatDateTime } from '../../lib/utils'
 import { classLabel } from '../../hooks/useClasses'
 import { Button } from '../ui/Button'
-import { CollaboratorsModal } from './CollaboratorsModal'
 import type { Test } from '../../lib/supabase'
 
 interface TestListProps {
   tests: Test[]
   onTestUpdated: () => void
-  onPreview: (testId: string) => void
   onEdit: (test: Test) => void
-  onReports: (testId: string) => void
-  onEditQuestions: (testId: string) => void
 }
 
-export function TestList({ tests, onTestUpdated, onPreview, onEdit, onReports, onEditQuestions }: TestListProps) {
-  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; test: Test | null }>({ show: false, test: null })
-  const [deleting, setDeleting] = useState(false)
+export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
   const [copying, setCopying] = useState<string | null>(null)
-  const [collaboratorsFor, setCollaboratorsFor] = useState<Test | null>(null)
 
-  const handleToggleStatus = async (test: Test) => {
+  const handleToggleStatus = async (e: React.MouseEvent, test: Test) => {
+    e.stopPropagation()
     const newStatus = test.status === 'draft' ? 'live' : test.status === 'live' ? 'closed' : 'draft'
     const { error } = await supabase.from('tests').update({ status: newStatus }).eq('id', test.id)
     if (!error) onTestUpdated()
   }
 
-  const copyToClipboard = async (text: string, key: string) => {
+  const copyToClipboard = async (e: React.MouseEvent, text: string, key: string) => {
+    e.stopPropagation()
     await navigator.clipboard.writeText(text)
     setCopying(key)
     setTimeout(() => setCopying(null), 1500)
-  }
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteConfirm.test) return
-    setDeleting(true)
-    try {
-      const { error } = await supabase.from('tests').delete().eq('id', deleteConfirm.test.id)
-      if (error) throw error
-      onTestUpdated()
-      setDeleteConfirm({ show: false, test: null })
-    } catch (error) {
-      console.error('Error deleting test:', error)
-    } finally {
-      setDeleting(false)
-    }
   }
 
   const statusConfig = {
@@ -60,7 +40,14 @@ export function TestList({ tests, onTestUpdated, onPreview, onEdit, onReports, o
       {tests.map(test => {
         const { label, cls, icon: StatusIcon } = statusConfig[test.status as keyof typeof statusConfig] || statusConfig.draft
         return (
-          <div key={test.id} className="bg-surface rounded-2xl border border-app shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
+          <div
+            key={test.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onEdit(test)}
+            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onEdit(test)}
+            className="text-left bg-surface rounded-2xl border border-app shadow-sm hover:shadow-md hover:border-app-strong transition-all overflow-hidden cursor-pointer"
+          >
             <div className="p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex-1 min-w-0">
@@ -103,7 +90,7 @@ export function TestList({ tests, onTestUpdated, onPreview, onEdit, onReports, o
                     <div className="flex items-center gap-2 bg-surface rounded-lg border border-[var(--brand-primary-soft)] p-2">
                       <code className="text-sm font-mono text-[var(--brand-primary-dark)] flex-1 font-bold tracking-widest">{test.test_code}</code>
                       <button
-                        onClick={() => copyToClipboard(test.test_code, `code-${test.id}`)}
+                        onClick={(e) => copyToClipboard(e, test.test_code, `code-${test.id}`)}
                         className="p-1.5 hover:bg-[var(--brand-primary-soft)] rounded-lg transition-colors text-[var(--brand-primary)]"
                         title="Copy code"
                       >
@@ -114,13 +101,13 @@ export function TestList({ tests, onTestUpdated, onPreview, onEdit, onReports, o
                     <div className="flex items-center gap-2 bg-surface rounded-lg border border-[var(--brand-primary-soft)] p-2">
                       <span className="text-xs font-mono text-[var(--brand-primary)] flex-1 truncate">{window.location.origin}/assessment</span>
                       <button
-                        onClick={() => copyToClipboard(`${window.location.origin}/assessment`, `link-${test.id}`)}
+                        onClick={(e) => copyToClipboard(e, `${window.location.origin}/assessment`, `link-${test.id}`)}
                         className="p-1.5 hover:bg-[var(--brand-primary-soft)] rounded-lg transition-colors text-[var(--brand-primary)]"
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => window.open(`${window.location.origin}/assessment`, '_blank')}
+                        onClick={(e) => { e.stopPropagation(); window.open(`${window.location.origin}/assessment`, '_blank') }}
                         className="p-1.5 hover:bg-[var(--brand-primary-soft)] rounded-lg transition-colors text-[var(--brand-primary)]"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -131,45 +118,11 @@ export function TestList({ tests, onTestUpdated, onPreview, onEdit, onReports, o
                 </div>
               )}
 
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex gap-2 flex-wrap">
-                  {test.status === 'live' && (
-                    <Button variant="outline" size="sm" onClick={() => onPreview(test.id)}>
-                      <Eye className="w-3.5 h-3.5" />Preview
-                    </Button>
-                  )}
-                  {test.status === 'draft' && (
-                    <>
-                      <Button variant="outline" size="sm" onClick={() => onEdit(test)}>
-                        <Edit2 className="w-3.5 h-3.5" />Edit
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => onEditQuestions(test.id)}>
-                        <FileText className="w-3.5 h-3.5" />Questions
-                      </Button>
-                    </>
-                  )}
-                  {test.status === 'closed' && (
-                    <Button variant="outline" size="sm" onClick={() => onReports(test.id)}>
-                      <BarChart3 className="w-3.5 h-3.5" />Reports
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={() => setCollaboratorsFor(test)}>
-                    <Users className="w-3.5 h-3.5" />Collaborators
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDeleteConfirm({ show: true, test })}
-                    className="text-red-500 border-red-200 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-
+              <div className="flex items-center justify-end">
                 <Button
                   size="sm"
                   variant={test.status === 'draft' ? 'primary' : test.status === 'live' ? 'danger' : 'secondary'}
-                  onClick={() => handleToggleStatus(test)}
+                  onClick={(e) => handleToggleStatus(e, test)}
                 >
                   {test.status === 'draft' && <><Play className="w-3.5 h-3.5" />Activate</>}
                   {test.status === 'live' && <><XCircle className="w-3.5 h-3.5" />Close</>}
@@ -180,41 +133,6 @@ export function TestList({ tests, onTestUpdated, onPreview, onEdit, onReports, o
           </div>
         )
       })}
-
-      {deleteConfirm.show && deleteConfirm.test && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md border border-app animate-in">
-            <div className="p-6">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
-                <Trash2 className="w-6 h-6 text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold text-ink text-center mb-2">Delete Assessment</h3>
-              <p className="text-ink-faint text-center text-sm mb-4">
-                Are you sure you want to delete "<strong className="text-ink">{deleteConfirm.test.title}</strong>"?
-              </p>
-              <div className="p-3 bg-red-50 rounded-xl border border-red-100 mb-5">
-                <ul className="text-xs text-red-700 space-y-0.5">
-                  <li>• All questions and answers</li>
-                  <li>• Student submissions and results</li>
-                  <li>• Analytics and reports</li>
-                </ul>
-              </div>
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setDeleteConfirm({ show: false, test: null })} className="flex-1" disabled={deleting}>Cancel</Button>
-                <Button variant="danger" onClick={handleDeleteConfirm} loading={deleting} className="flex-1">Delete</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {collaboratorsFor && (
-        <CollaboratorsModal
-          testId={collaboratorsFor.id}
-          testTitle={collaboratorsFor.title}
-          onClose={() => setCollaboratorsFor(null)}
-        />
-      )}
     </div>
   )
 }

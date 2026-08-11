@@ -7,15 +7,12 @@ import type { Test } from '../../lib/supabase'
 interface TestDashboardProps {
   tests: Test[]
   onTestUpdated: () => void
-  onPreview: (testId: string) => void
   onEdit: (test: Test) => void
-  onReports: (testId: string) => void
-  onEditQuestions: (testId: string) => void
 }
 
 type TestFilter = 'all' | 'draft' | 'live' | 'closed'
 
-export function TestDashboard({ tests, onTestUpdated, onPreview, onEdit, onReports, onEditQuestions }: TestDashboardProps) {
+export function TestDashboard({ tests, onTestUpdated, onEdit }: TestDashboardProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeFilter, setActiveFilter] = useState<TestFilter>('all')
   const [classFilter, setClassFilter] = useState('')
@@ -138,10 +135,7 @@ export function TestDashboard({ tests, onTestUpdated, onPreview, onEdit, onRepor
         <TestList
           tests={filteredTests}
           onTestUpdated={onTestUpdated}
-          onPreview={onPreview}
           onEdit={onEdit}
-          onReports={onReports}
-          onEditQuestions={onEditQuestions}
         />
       )}
     </div>

@@ -22,5 +22,14 @@ export function useClassRoster(classId: string | undefined) {
     await fetchRoster()
   }
 
-  return { roster, loading, removeStudent, refetch: fetchRoster }
+  const addStudent = async (email: string, name?: string) => {
+    if (!classId) throw new Error('Missing class')
+    const { error } = await supabase
+      .from('class_students')
+      .upsert([{ class_id: classId, student_email: email.trim(), student_name: name?.trim() || null }], { onConflict: 'class_id,student_email' })
+    if (error) throw error
+    await fetchRoster()
+  }
+
+  return { roster, loading, removeStudent, addStudent, refetch: fetchRoster }
 }
