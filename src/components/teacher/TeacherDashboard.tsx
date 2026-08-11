@@ -154,10 +154,13 @@ export function TeacherDashboard() {
               Classes
             </button>
 
-            {/* Class list — real navigation, not just a link */}
+            {/* Class list — a quick-access shortlist, not the full browsable
+                list (that's the Classes page itself, which scales via its
+                own search/grid). Capped so a growing roster of classes
+                doesn't keep pushing the rest of the sidebar down. */}
             {classes.length > 0 && (
               <div className="pl-3 py-1 space-y-0.5">
-                {classes.map(cls => {
+                {classes.slice(0, 6).map(cls => {
                   const classTests = tests.filter(t => t.class_id === cls.id)
                   const live = classTests.filter(t => t.status === 'live').length
                   const active = effectiveViewMode === 'class-detail' && selectedClassId === cls.id
@@ -180,6 +183,14 @@ export function TeacherDashboard() {
                     </button>
                   )
                 })}
+                {classes.length > 6 && (
+                  <button
+                    onClick={goToClasses}
+                    className="w-full text-left pl-3 pr-2 py-1.5 text-xs text-ink-faint hover:text-[var(--brand-primary)] transition-colors"
+                  >
+                    +{classes.length - 6} more…
+                  </button>
+                )}
               </div>
             )}
 
