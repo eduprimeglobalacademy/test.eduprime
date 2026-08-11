@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, CheckCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Clock, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, ShieldCheck, UserX } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useTenant } from '../../contexts/TenantContext'
 import { Button } from '../ui/Button'
@@ -16,7 +16,7 @@ interface TestQuestion extends Question {
   options: QuestionOption[]
 }
 
-type TestPhase = 'details' | 'instructions' | 'test' | 'submitting'
+type TestPhase = 'auth-check' | 'blocked' | 'details' | 'instructions' | 'test' | 'submitting'
 
 export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProps) {
   const { org } = useTenant()
@@ -35,6 +35,9 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   const [phase, setPhase] = useState<TestPhase>('details')
   const [duplicateError, setDuplicateError] = useState('')
   const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null)
+  const [googleEmailLocked, setGoogleEmailLocked] = useState(false)
+  const [blockReason, setBlockReason] = useState<'not-enrolled' | 'blocked' | null>(null)
+  const [authError, setAuthError] = useState('')
 
   useEffect(() => { fetchTest() }, [testCode])
 
@@ -76,11 +79,47 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       const { data: qData, error: qError } = await supabase.from('questions').select('*, question_options (*)').eq('test_id', testData.id).order('question_order')
       if (qError) throw qError
       setQuestions(qData.map(q => ({ ...q, options: q.question_options.sort((a: any, b: any) => a.option_order - b.option_order) })))
+      await resolveGate(testData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load test')
     } finally {
       setLoading(false)
     }
+  }
+
+  const resolveGate = async (testData: Test) => {
+    if (!testData.require_google_auth) { setPhase('details'); return }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.email) { setPhase('auth-check'); return }
+    setStudentEmail(user.email)
+    setGoogleEmailLocked(true)
+    setStudentName(user.user_metadata?.full_name || user.user_metadata?.name || '')
+    if (testData.class_id) {
+      const { data: enrollment } = await supabase
+        .from('class_students')
+        .select('blocked')
+        .eq('class_id', testData.class_id)
+        .eq('student_email', user.email)
+        .maybeSingle()
+      if (!enrollment) { setBlockReason('not-enrolled'); setPhase('blocked'); return }
+      if (enrollment.blocked) { setBlockReason('blocked'); setPhase('blocked'); return }
+    }
+    setPhase('details')
+  }
+
+  const handleGoogleSignIn = async (selectAccount = false) => {
+    setAuthError('')
+    const url = new URL(window.location.href)
+    url.searchParams.set('code', testCode)
+    window.history.replaceState(null, '', url.pathname + url.search)
+    const { error: signInError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: url.toString(),
+        ...(selectAccount ? { queryParams: { prompt: 'select_account' } } : {}),
+      },
+    })
+    if (signInError) setAuthError(signInError.message)
   }
 
   const handleDetailsSubmit = () => {
@@ -173,6 +212,37 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
     </div>
   )
 
+  if (phase === 'auth-check') return (
+    <div className="theme-dark min-h-screen bg-app-outer flex items-center justify-center p-4">
+      <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md p-6 sm:p-8 text-center">
+        <ShieldCheck className="w-12 h-12 text-[var(--brand-primary)] mx-auto mb-4" />
+        <h2 className="text-xl font-bold text-ink mb-2">{test?.title}</h2>
+        <p className="text-ink-faint text-sm mb-6">This assessment requires you to sign in with Google before entering the code.</p>
+        {authError && <p className="text-sm text-red-500 mb-4">{authError}</p>}
+        <Button onClick={() => handleGoogleSignIn(false)} className="w-full" size="lg">Continue with Google</Button>
+      </div>
+    </div>
+  )
+
+  if (phase === 'blocked') return (
+    <div className="theme-dark min-h-screen bg-app-outer flex items-center justify-center p-4">
+      <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md p-6 sm:p-8 text-center">
+        <UserX className="w-12 h-12 text-red-400 mx-auto mb-4" />
+        <h2 className="text-xl font-bold text-ink mb-2">
+          {blockReason === 'blocked' ? "You've been blocked from this class" : "You're not enrolled in this class"}
+        </h2>
+        <p className="text-ink-faint text-sm mb-6">
+          {blockReason === 'blocked'
+            ? 'Your teacher has blocked this account from taking assessments in this class.'
+            : "Ask your teacher to add you to the class roster, then try again."}
+        </p>
+        {blockReason === 'not-enrolled' && (
+          <Button variant="outline" onClick={() => handleGoogleSignIn(true)} className="w-full">Try a different account</Button>
+        )}
+      </div>
+    </div>
+  )
+
   if (phase === 'details') return (
     <div className="theme-dark min-h-screen bg-app-outer flex items-center justify-center p-4">
       <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md">
@@ -188,7 +258,15 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
             </div>
             <div>
               <label className="block text-sm font-medium text-ink-soft mb-1.5">Email Address *</label>
-              <input type="email" value={studentEmail} onChange={e => setStudentEmail(e.target.value)} className="input-base" placeholder="Enter your email address" />
+              <input
+                type="email"
+                value={studentEmail}
+                onChange={e => !googleEmailLocked && setStudentEmail(e.target.value)}
+                readOnly={googleEmailLocked}
+                className={`input-base ${googleEmailLocked ? 'opacity-70 cursor-not-allowed' : ''}`}
+                placeholder="Enter your email address"
+              />
+              {googleEmailLocked && <p className="text-xs text-ink-muted mt-1">Verified via Google sign-in</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-ink-soft mb-1.5">Phone Number *</label>

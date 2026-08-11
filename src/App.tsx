@@ -5,6 +5,7 @@ import { LandingPage } from './components/LandingPage'
 import { AdminDashboard } from './components/admin/AdminDashboard'
 import { TeacherDashboard } from './components/teacher/TeacherDashboard'
 import { TestAccess } from './components/student/TestAccess'
+import { ClassEnrollment } from './components/student/ClassEnrollment'
 import { LoadingSpinner } from './components/ui/LoadingSpinner'
 import { OrgNotFound } from './components/tenant/OrgNotFound'
 import { RootMarketing } from './components/tenant/RootMarketing'
@@ -14,15 +15,19 @@ import { ImpersonationBanner } from './components/superadmin/ImpersonationBanner
 function AppContent() {
   const { user, loading } = useAuth()
   const { org, loading: tenantLoading, notFound, isRootDomain } = useTenant()
-  const [currentView, setCurrentView] = useState<'landing' | 'test-access'>('landing')
+  const [currentView, setCurrentView] = useState<'landing' | 'test-access' | 'enroll'>('landing')
+  const [enrollClassId, setEnrollClassId] = useState<string | null>(null)
 
   useEffect(() => {
     // Check if URL is the test access page
     const path = window.location.pathname
-    
+
     if (path === '/test' || path.startsWith('/test/') || path === '/assessment' || path.startsWith('/assessment/')) {
       // Always show test access page for /test routes
       setCurrentView('test-access')
+    } else if (path === '/enroll') {
+      const classId = new URLSearchParams(window.location.search).get('class')
+      if (classId) { setEnrollClassId(classId); setCurrentView('enroll') }
     }
   }, [])
 
@@ -55,6 +60,10 @@ function AppContent() {
   // so links shared before an org had its own subdomain keep working.
   if (currentView === 'test-access') {
     return <TestAccess onJoinTest={handleJoinTest} orgId={org?.id} />
+  }
+
+  if (currentView === 'enroll' && enrollClassId) {
+    return <ClassEnrollment classId={enrollClassId} orgId={org?.id} />
   }
 
   // If user is authenticated, show appropriate dashboard

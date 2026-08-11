@@ -102,6 +102,16 @@ export interface Class {
   created_at: string
 }
 
+export interface ClassStudent {
+  id: string
+  org_id: string
+  class_id: string
+  student_email: string
+  student_name?: string
+  blocked: boolean
+  joined_at: string
+}
+
 export interface TeacherFocusItem {
   id: string
   org_id: string
@@ -161,6 +171,7 @@ export interface Test {
   show_results: boolean
   allow_navigation_back: boolean
   per_question_timing: boolean
+  require_google_auth: boolean
   created_at: string
   updated_at: string
   grading_config?: {

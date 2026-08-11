@@ -47,6 +47,7 @@ interface SettingsForm {
   allowNavigationBack: boolean
   perQuestionTiming: boolean
   timePerQuestion: string
+  requireGoogleAuth: boolean
   aGrade: string
   bGrade: string
   cGrade: string
@@ -57,6 +58,7 @@ interface SettingsForm {
 const EMPTY_SETTINGS: SettingsForm = {
   title: '', description: '', durationMinutes: '', startTime: '', endTime: '',
   showResults: true, allowNavigationBack: true, perQuestionTiming: false, timePerQuestion: '60',
+  requireGoogleAuth: false,
   aGrade: '90', bGrade: '80', cGrade: '70', dGrade: '60', passingGrade: '60',
 }
 
@@ -108,6 +110,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
           allowNavigationBack: test.allow_navigation_back,
           perQuestionTiming: test.per_question_timing,
           timePerQuestion: '60',
+          requireGoogleAuth: test.require_google_auth,
           aGrade: test.grading_config?.aGrade?.toString() || '90',
           bGrade: test.grading_config?.bGrade?.toString() || '80',
           cGrade: test.grading_config?.cGrade?.toString() || '70',
@@ -147,6 +150,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
     show_results: settings.showResults,
     allow_navigation_back: settings.allowNavigationBack,
     per_question_timing: settings.perQuestionTiming,
+    require_google_auth: settings.requireGoogleAuth,
     grading_config: {
       aGrade: parseFloat(settings.aGrade),
       bGrade: parseFloat(settings.bGrade),
@@ -512,6 +516,22 @@ Note: Mark correct answers with * or put correct answer first (A.)
                     />
                   </div>
                 )}
+                <label className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={settings.requireGoogleAuth}
+                    onChange={(e) => update('requireGoogleAuth', e.target.checked)}
+                    className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-ink-soft">Require Google sign-in before entry</p>
+                    <p className="text-xs text-ink-faint mt-0.5">
+                      Students must sign in with Google before entering the code. {classId
+                        ? "They'll also need to be enrolled in this class's roster (share the enrollment link from the class page) — you can block a specific student there too."
+                        : 'This assessment has no class, so only identity is checked — there\'s no roster to enroll in or block against. Put it under a class to enable blocking.'}
+                    </p>
+                  </div>
+                </label>
               </div>
             )}
           </div>

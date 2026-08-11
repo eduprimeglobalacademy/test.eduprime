@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Trash2, Copy, Users, Ban, RotateCcw } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { TestDashboard } from './TestDashboard'
 import { classLabel } from '../../hooks/useClasses'
+import { useClassRoster } from '../../hooks/useClassRoster'
 import type { Test, Class } from '../../lib/supabase'
 
 interface ClassDetailProps {
@@ -30,6 +31,15 @@ export function ClassDetail({
   const [form, setForm] = useState({ name: '', course_name: '', grade_level: '', academic_term: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const { roster, setBlocked, removeStudent } = useClassRoster(classId)
+
+  const enrollmentLink = `${window.location.origin}/enroll?class=${classId}`
+  const copyLink = () => {
+    navigator.clipboard.writeText(enrollmentLink)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   const classTests = tests.filter(t => t.class_id === classId)
   const draft = classTests.filter(t => t.status === 'draft')
@@ -132,6 +142,52 @@ export function ClassDetail({
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <h3 className="text-base font-semibold text-ink flex items-center gap-2">
+            <Users className="w-4 h-4 text-[var(--brand-primary)]" />Roster
+            <span className="text-xs font-normal text-ink-faint">{roster.length} enrolled</span>
+          </h3>
+        </div>
+        <div className="flex items-center gap-2 bg-app rounded-lg border border-app px-3 py-2 mb-4">
+          <code className="text-xs text-ink-soft flex-1 truncate font-mono">{enrollmentLink}</code>
+          <button onClick={copyLink} className="text-[var(--brand-primary)] shrink-0" title="Copy enrollment link">
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        {copied && <p className="text-xs text-emerald-600 -mt-2 mb-3">Copied!</p>}
+        <p className="text-xs text-ink-faint mb-4">Share this link with students — they sign in with Google to join this class's roster.</p>
+
+        {roster.length === 0 ? (
+          <p className="text-sm text-ink-muted">No students enrolled yet.</p>
+        ) : (
+          <div className="divide-y divide-app">
+            {roster.map(s => (
+              <div key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className={`text-sm font-medium truncate ${s.blocked ? 'text-ink-muted line-through' : 'text-ink'}`}>{s.student_name || s.student_email}</p>
+                  {s.student_name && <p className="text-xs text-ink-faint truncate">{s.student_email}</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {s.blocked ? (
+                    <Button size="sm" variant="outline" onClick={() => setBlocked(s.id, false)}>
+                      <RotateCcw className="w-3.5 h-3.5" />Unblock
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setBlocked(s.id, true)} className="text-red-500 border-red-200 hover:bg-red-50">
+                      <Ban className="w-3.5 h-3.5" />Block
+                    </Button>
+                  )}
+                  <button onClick={() => removeStudent(s.id)} className="text-ink-muted hover:text-red-500" title="Remove">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-4">

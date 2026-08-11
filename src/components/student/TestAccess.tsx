@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Hash, ArrowRight, GraduationCap } from 'lucide-react'
 import { TestInterface } from './TestInterface'
 import { TestResults } from './TestResults'
@@ -20,6 +20,14 @@ export function TestAccess({ onJoinTest, orgId }: TestAccessProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('access')
   const [currentTestCode, setCurrentTestCode] = useState('')
   const [testResults, setTestResults] = useState<any>(null)
+
+  useEffect(() => {
+    const codeFromUrl = new URLSearchParams(window.location.search).get('code')
+    if (codeFromUrl) {
+      setCurrentTestCode(codeFromUrl.toUpperCase())
+      setViewMode('test')
+    }
+  }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
