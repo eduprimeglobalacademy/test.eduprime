@@ -1,19 +1,17 @@
 import { useState } from 'react'
 import { Plus, BookOpen, Play, Clock, ChevronRight, X, Copy } from 'lucide-react'
-import { useClasses } from '../../hooks/useClasses'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
-import { LoadingSpinner } from '../ui/LoadingSpinner'
 import type { Class, Test } from '../../lib/supabase'
 
 interface ClassGridProps {
-  teacherId: string
+  classes: Class[]
   tests: Test[]
+  createClass: (input: { name: string; course_name?: string; grade_level?: string; academic_term?: string }) => Promise<Class>
   onOpenClass: (classId: string) => void
 }
 
-export function ClassGrid({ teacherId, tests, onOpenClass }: ClassGridProps) {
-  const { classes, loading, createClass } = useClasses(teacherId)
+export function ClassGrid({ classes, tests, createClass, onOpenClass }: ClassGridProps) {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -50,8 +48,6 @@ export function ClassGrid({ teacherId, tests, onOpenClass }: ClassGridProps) {
       liveTest: live[0],
     }
   }
-
-  if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
 
   return (
     <div className="space-y-5">

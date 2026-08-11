@@ -3,13 +3,15 @@ import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Tr
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { TestDashboard } from './TestDashboard'
-import { useClasses, classLabel } from '../../hooks/useClasses'
-import type { Test } from '../../lib/supabase'
+import { classLabel } from '../../hooks/useClasses'
+import type { Test, Class } from '../../lib/supabase'
 
 interface ClassDetailProps {
-  teacherId: string
   classId: string
+  classes: Class[]
   tests: Test[]
+  updateClass: (id: string, patch: { name?: string; course_name?: string; grade_level?: string; academic_term?: string }) => Promise<Class>
+  deleteClass: (id: string) => Promise<void>
   onBack: () => void
   onTestUpdated: () => void
   onCreateAssessment: (classId: string) => void
@@ -20,10 +22,9 @@ interface ClassDetailProps {
 }
 
 export function ClassDetail({
-  teacherId, classId, tests, onBack, onTestUpdated,
+  classId, classes, tests, updateClass, deleteClass, onBack, onTestUpdated,
   onCreateAssessment, onPreview, onEdit, onReports, onEditQuestions,
 }: ClassDetailProps) {
-  const { classes, updateClass, deleteClass } = useClasses(teacherId)
   const cls = classes.find(c => c.id === classId)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: '', course_name: '', grade_level: '', academic_term: '' })

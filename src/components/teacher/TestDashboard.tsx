@@ -57,47 +57,62 @@ export function TestDashboard({ tests, onTestUpdated, onPreview, onEdit, onRepor
   return (
     <div className="space-y-5">
       {/* Search + Filters */}
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-4 flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4 pointer-events-none" />
-          <input
-            placeholder="Search by title, description, or code..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-base pl-10 w-full"
-          />
-        </div>
-        {classOptions.length > 0 && (
-          <select
-            value={classFilter}
-            onChange={(e) => setClassFilter(e.target.value)}
-            className="input-base sm:w-56 shrink-0"
-          >
-            <option value="">All classes</option>
-            {classOptions.map(([id, label]) => (
-              <option key={id} value={id}>{label}</option>
+      <div className="bg-surface rounded-2xl border border-app shadow-sm p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4 pointer-events-none" />
+            <input
+              placeholder="Search by title, description, or code..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-base pl-10 w-full"
+            />
+          </div>
+          <div className="flex gap-1.5 shrink-0 flex-wrap">
+            {filters.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveFilter(key)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                  activeFilter === key
+                    ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                    : 'bg-surface-2 text-ink-soft hover:bg-surface-2'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeFilter === key ? 'bg-surface/20 text-white' : 'bg-surface text-ink-faint'}`}>
+                  {counts[key]}
+                </span>
+              </button>
             ))}
-          </select>
-        )}
-        <div className="flex gap-1.5 shrink-0 flex-wrap">
-          {filters.map(({ key, label, icon: Icon }) => (
+          </div>
+        </div>
+
+        {classOptions.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-app">
+            <span className="text-xs font-medium text-ink-faint mr-1 shrink-0">Class</span>
             <button
-              key={key}
-              onClick={() => setActiveFilter(key)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                activeFilter === key
-                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
-                  : 'bg-surface-2 text-ink-soft hover:bg-surface-2'
+              onClick={() => setClassFilter('')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                !classFilter ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary-darker)]' : 'bg-surface-2 text-ink-faint hover:bg-surface-2'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
-              {label}
-              <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeFilter === key ? 'bg-surface/20 text-white' : 'bg-surface text-ink-faint'}`}>
-                {counts[key]}
-              </span>
+              All
             </button>
-          ))}
-        </div>
+            {classOptions.map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setClassFilter(id)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  classFilter === id ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary-darker)]' : 'bg-surface-2 text-ink-faint hover:bg-surface-2'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Results */}

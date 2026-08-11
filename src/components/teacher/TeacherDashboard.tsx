@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Plus, BarChart3, Clock, Users, LogOut, GraduationCap, Layers, ListChecks } from 'lucide-react'
+import { BookOpen, Plus, BarChart3, Clock, Users, LogOut, GraduationCap, Layers, ListChecks, Play } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -15,6 +15,7 @@ import { TestPreview } from './TestPreview'
 import { TestReports } from './TestReports'
 import { ClassGrid } from './ClassGrid'
 import { ClassDetail } from './ClassDetail'
+import { useClasses } from '../../hooks/useClasses'
 import type { Test, Teacher } from '../../lib/supabase'
 
 type ViewMode = 'classes' | 'class-detail' | 'assessments' | 'preview' | 'reports' | 'author'
@@ -34,6 +35,7 @@ export function TeacherDashboard() {
   const [selectedTestId, setSelectedTestId] = useState<string>('')
   const [authoringTestId, setAuthoringTestId] = useState<string | undefined>(undefined)
   const [authoringClassId, setAuthoringClassId] = useState<string | undefined>(undefined)
+  const { classes, createClass, updateClass, deleteClass } = useClasses(teacher?.id)
 
   useEffect(() => { fetchData() }, [user])
 
@@ -53,7 +55,7 @@ export function TeacherDashboard() {
     }
   }
 
-  const sidebarSection: SidebarSection = viewMode === 'class-detail' ? 'classes' : viewMode === 'assessments' ? 'assessments' : 'classes'
+  const sidebarSection: SidebarSection = viewMode === 'assessments' ? 'assessments' : 'classes'
   const goToClasses = () => { setViewMode('classes'); setSelectedClassId('') }
   const goToAssessments = () => { setViewMode('assessments'); setSelectedClassId('') }
   const openClass = (classId: string) => { setSelectedClassId(classId); setViewMode('class-detail') }
@@ -79,16 +81,11 @@ export function TeacherDashboard() {
   const liveTests = tests.filter(t => t.status === 'live')
   const closedTests = tests.filter(t => t.status === 'closed')
 
-  const navItems: { key: SidebarSection; label: string; icon: React.ElementType; onClick: () => void }[] = [
-    { key: 'classes', label: 'Classes', icon: Layers, onClick: goToClasses },
-    { key: 'assessments', label: 'All Assessments', icon: ListChecks, onClick: goToAssessments },
-  ]
-
   return (
-    <div className="min-h-screen bg-app">
+    <div className="min-h-screen bg-app flex flex-col">
       {/* Header */}
       <header className="page-header">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3 min-w-0">
               <img src={orgLogo} alt={orgName} className="w-8 h-8 object-contain rounded-lg shrink-0" />
@@ -111,44 +108,95 @@ export function TeacherDashboard() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex gap-8 items-start">
-        {/* Sidebar */}
-        <aside className="w-52 shrink-0 hidden md:block sticky top-24">
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar — full height, true left edge, separated by a border */}
+        <aside className="w-64 shrink-0 hidden md:flex flex-col bg-app-outer border-r border-app-strong px-4 py-6">
           <nav className="space-y-1">
-            {navItems.map(({ key, label, icon: Icon, onClick }) => (
-              <button
-                key={key}
-                onClick={onClick}
-                className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  sidebarSection === key
-                    ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
-                    : 'text-ink-soft hover:bg-surface-2'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </button>
-            ))}
+            <button
+              onClick={goToClasses}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                sidebarSection === 'classes'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              Classes
+            </button>
+
+            {/* Class list — real navigation, not just a link */}
+            {classes.length > 0 && (
+              <div className="pl-3 py-1 space-y-0.5">
+                {classes.map(cls => {
+                  const classTests = tests.filter(t => t.class_id === cls.id)
+                  const live = classTests.filter(t => t.status === 'live').length
+                  const active = viewMode === 'class-detail' && selectedClassId === cls.id
+                  return (
+                    <button
+                      key={cls.id}
+                      onClick={() => openClass(cls.id)}
+                      className={`w-full flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg text-sm text-left transition-colors border-l-2 ${
+                        active
+                          ? 'border-[var(--brand-primary)] bg-surface text-ink font-medium'
+                          : 'border-transparent text-ink-faint hover:text-ink-soft hover:bg-surface/60'
+                      }`}
+                    >
+                      <span className="truncate flex-1">{cls.name}</span>
+                      {live > 0 && (
+                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 shrink-0">
+                          <Play className="w-2.5 h-2.5" />{live}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={goToAssessments}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors mt-2 ${
+                sidebarSection === 'assessments'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <ListChecks className="w-4 h-4" />
+              All Assessments
+            </button>
           </nav>
+
+          <div className="mt-auto pt-6 border-t border-app-strong">
+            {plan && (
+              <UsageMeter
+                label="Active assessments"
+                used={draftTests.length + liveTests.length}
+                limit={plan.max_active_tests}
+                unit="active"
+              />
+            )}
+          </div>
         </aside>
 
         {/* Main content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
           {org && (org.status === 'trial' || org.status === 'past_due' || org.status === 'suspended') && (
             <div className="mb-8">
               <OrgStatusBanner org={org} />
             </div>
           )}
 
-          {viewMode === 'classes' && teacher && (
-            <ClassGrid teacherId={teacher.id} tests={tests} onOpenClass={openClass} />
+          {viewMode === 'classes' && (
+            <ClassGrid classes={classes} tests={tests} createClass={createClass} onOpenClass={openClass} />
           )}
 
-          {viewMode === 'class-detail' && teacher && selectedClassId && (
+          {viewMode === 'class-detail' && selectedClassId && (
             <ClassDetail
-              teacherId={teacher.id}
               classId={selectedClassId}
+              classes={classes}
               tests={tests}
+              updateClass={updateClass}
+              deleteClass={deleteClass}
               onBack={goToClasses}
               onTestUpdated={fetchData}
               onCreateAssessment={handleAuthorNew}
@@ -191,17 +239,6 @@ export function TeacherDashboard() {
                   <span className="sm:hidden">Create</span>
                 </Button>
               </div>
-
-              {plan && (
-                <div className="mb-6 max-w-xs">
-                  <UsageMeter
-                    label="Active assessments"
-                    used={draftTests.length + liveTests.length}
-                    limit={plan.max_active_tests}
-                    unit="active"
-                  />
-                </div>
-              )}
 
               <TestDashboard
                 tests={tests}
