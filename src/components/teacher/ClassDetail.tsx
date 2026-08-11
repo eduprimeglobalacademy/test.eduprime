@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
-import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Trash2, Copy, Users, Ban, RotateCcw, Search } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Trash2, Copy, Users, Ban, RotateCcw, Search, ChevronDown, QrCode } from 'lucide-react'
+import QRCode from 'qrcode'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { TestDashboard } from './TestDashboard'
@@ -33,6 +34,9 @@ export function ClassDetail({
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [rosterSearch, setRosterSearch] = useState('')
+  const [rosterOpen, setRosterOpen] = useState(false)
+  const [showQr, setShowQr] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState('')
   const { roster, setBlocked, removeStudent } = useClassRoster(classId)
 
   const enrollmentLink = `${window.location.origin}/enroll?class=${classId}`
@@ -41,6 +45,11 @@ export function ClassDetail({
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
+
+  useEffect(() => {
+    if (!showQr) return
+    QRCode.toDataURL(enrollmentLink, { width: 160, margin: 1 }).then(setQrDataUrl).catch(() => setQrDataUrl(''))
+  }, [showQr, enrollmentLink])
 
   const blockedCount = roster.filter(s => s.blocked).length
   const filteredRoster = useMemo(() => {
@@ -152,69 +161,100 @@ export function ClassDetail({
         ))}
       </div>
 
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6">
-        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-          <h3 className="text-base font-semibold text-ink flex items-center gap-2">
+      <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setRosterOpen(v => !v)}
+          className="w-full flex items-center justify-between gap-4 px-5 sm:px-6 py-4 text-left"
+        >
+          <h3 className="text-base font-semibold text-ink flex items-center gap-2 flex-wrap">
             <Users className="w-4 h-4 text-[var(--brand-primary)]" />Roster
             <span className="text-xs font-normal text-ink-faint">{roster.length} enrolled</span>
             {blockedCount > 0 && (
               <span className="badge text-xs bg-red-50 text-red-600 border border-red-200">{blockedCount} blocked</span>
             )}
           </h3>
-        </div>
-        <div className="flex items-center gap-2 bg-app rounded-lg border border-app px-3 py-2 mb-4">
-          <code className="text-xs text-ink-soft flex-1 truncate font-mono">{enrollmentLink}</code>
-          <button onClick={copyLink} className="text-[var(--brand-primary)] shrink-0" title="Copy enrollment link">
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-        </div>
-        {copied && <p className="text-xs text-emerald-600 -mt-2 mb-3">Copied!</p>}
-        <p className="text-xs text-ink-faint mb-4">Share this link with students — they sign in with Google to join this class's roster.</p>
+          <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 shrink-0 ${rosterOpen ? 'rotate-180' : ''}`} />
+        </button>
 
-        {roster.length === 0 ? (
-          <p className="text-sm text-ink-muted">No students enrolled yet.</p>
-        ) : (
-          <>
-            {roster.length > 6 && (
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted w-3.5 h-3.5 pointer-events-none" />
-                <input
-                  placeholder="Search students…"
-                  value={rosterSearch}
-                  onChange={(e) => setRosterSearch(e.target.value)}
-                  className="input-base pl-8 py-1.5 text-sm"
-                />
+        {rosterOpen && (
+          <div className="border-t border-app px-5 sm:px-6 py-5">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 bg-app rounded-lg border border-app px-3 py-2">
+                  <code className="text-xs text-ink-soft flex-1 truncate font-mono">{enrollmentLink}</code>
+                  <button onClick={copyLink} className="text-[var(--brand-primary)] shrink-0" title="Copy enrollment link">
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {copied && <p className="text-xs text-emerald-600 mt-1.5">Copied!</p>}
+                <p className="text-xs text-ink-faint mt-2">Share this link with students — they sign in with Google to join this class's roster.</p>
+              </div>
+              <button
+                onClick={() => setShowQr(v => !v)}
+                className={`shrink-0 p-2.5 rounded-lg border transition-colors ${showQr ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'border-app text-ink-muted hover:text-ink-soft'}`}
+                title="Show QR code"
+              >
+                <QrCode className="w-4 h-4" />
+              </button>
+            </div>
+
+            {showQr && (
+              <div className="flex justify-center mb-5">
+                {qrDataUrl ? (
+                  <img src={qrDataUrl} alt="QR code for enrollment link" className="rounded-lg border border-app p-2 bg-white" width={160} height={160} />
+                ) : (
+                  <div className="w-40 h-40 rounded-lg border border-app bg-app animate-pulse" />
+                )}
               </div>
             )}
-            {filteredRoster.length === 0 ? (
-              <p className="text-sm text-ink-muted">No students match "{rosterSearch}".</p>
+
+            {roster.length === 0 ? (
+              <p className="text-sm text-ink-muted">No students enrolled yet.</p>
             ) : (
-              <div className="divide-y divide-app max-h-80 overflow-y-auto scrollbar-thin">
-                {filteredRoster.map(s => (
-                  <div key={s.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className={`text-sm font-medium truncate ${s.blocked ? 'text-ink-muted line-through' : 'text-ink'}`}>{s.student_name || s.student_email}</p>
-                      {s.student_name && <p className="text-xs text-ink-faint truncate">{s.student_email}</p>}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {s.blocked ? (
-                        <Button size="sm" variant="outline" onClick={() => setBlocked(s.id, false)}>
-                          <RotateCcw className="w-3.5 h-3.5" />Unblock
-                        </Button>
-                      ) : (
-                        <Button size="sm" variant="outline" onClick={() => setBlocked(s.id, true)} className="text-red-500 border-red-200 hover:bg-red-50">
-                          <Ban className="w-3.5 h-3.5" />Block
-                        </Button>
-                      )}
-                      <button onClick={() => removeStudent(s.id)} className="text-ink-muted hover:text-red-500" title="Remove">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              <>
+                {roster.length > 6 && (
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted w-3.5 h-3.5 pointer-events-none" />
+                    <input
+                      placeholder="Search students…"
+                      value={rosterSearch}
+                      onChange={(e) => setRosterSearch(e.target.value)}
+                      className="input-base pl-8 py-1.5 text-sm"
+                    />
                   </div>
-                ))}
-              </div>
+                )}
+                {filteredRoster.length === 0 ? (
+                  <p className="text-sm text-ink-muted">No students match "{rosterSearch}".</p>
+                ) : (
+                  <div className="divide-y divide-app max-h-80 overflow-y-auto scrollbar-thin">
+                    {filteredRoster.map(s => (
+                      <div key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className={`text-sm font-medium truncate ${s.blocked ? 'text-ink-muted line-through' : 'text-ink'}`}>{s.student_name || s.student_email}</p>
+                          {s.student_name && <p className="text-xs text-ink-faint truncate">{s.student_email}</p>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {s.blocked ? (
+                            <Button size="sm" variant="outline" onClick={() => setBlocked(s.id, false)}>
+                              <RotateCcw className="w-3.5 h-3.5" />Unblock
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => setBlocked(s.id, true)} className="text-red-500 border-red-200 hover:bg-red-50">
+                              <Ban className="w-3.5 h-3.5" />Block
+                            </Button>
+                          )}
+                          <button onClick={() => removeStudent(s.id)} className="text-ink-muted hover:text-red-500" title="Remove">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
-          </>
+          </div>
         )}
       </div>
 
