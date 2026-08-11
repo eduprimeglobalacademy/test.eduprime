@@ -102,6 +102,14 @@ export interface Class {
   created_at: string
 }
 
+export interface TestBlockedStudent {
+  id: string
+  org_id: string
+  test_id: string
+  student_email: string
+  blocked_at: string
+}
+
 export interface ClassStudent {
   id: string
   org_id: string

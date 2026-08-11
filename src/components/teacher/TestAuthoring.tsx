@@ -9,6 +9,7 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { ClassPicker } from './ClassPicker'
+import { BlockedStudentsPanel } from './BlockedStudentsPanel'
 import { QuestionBankPicker } from './QuestionBankPicker'
 import type { Test } from '../../lib/supabase'
 
@@ -526,12 +527,24 @@ Note: Mark correct answers with * or put correct answer first (A.)
                   <div>
                     <p className="text-sm font-medium text-ink-soft">Require Google sign-in before entry</p>
                     <p className="text-xs text-ink-faint mt-0.5">
-                      Students must sign in with Google before entering the code. {classId
-                        ? "They'll also need to be enrolled in this class's roster (share the enrollment link from the class page) — you can block a specific student there too."
-                        : 'This assessment has no class, so only identity is checked — there\'s no roster to enroll in or block against. Put it under a class to enable blocking.'}
+                      Students must sign in with Google before entering the code.{' '}
+                      {classId
+                        ? "They'll also need to be enrolled in this class's roster (share the enrollment link from the class page)."
+                        : 'This assessment has no class, so only identity is checked — there\'s no roster to enroll in.'}
+                      {' '}You can block specific students below, for this assessment only.
                     </p>
                   </div>
                 </label>
+
+                {settings.requireGoogleAuth && (
+                  <div className="ml-7 pt-1">
+                    {testId ? (
+                      <BlockedStudentsPanel testId={testId} />
+                    ) : (
+                      <p className="text-xs text-ink-muted">Save the assessment to block specific students.</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

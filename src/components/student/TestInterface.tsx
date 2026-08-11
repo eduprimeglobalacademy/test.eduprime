@@ -36,7 +36,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   const [duplicateError, setDuplicateError] = useState('')
   const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null)
   const [googleEmailLocked, setGoogleEmailLocked] = useState(false)
-  const [blockReason, setBlockReason] = useState<'not-enrolled' | 'blocked' | null>(null)
+  const [blockReason, setBlockReason] = useState<'not-enrolled' | 'blocked' | 'test-blocked' | null>(null)
   const [authError, setAuthError] = useState('')
 
   useEffect(() => { fetchTest() }, [testCode])
@@ -94,6 +94,15 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
     setStudentEmail(user.email)
     setGoogleEmailLocked(true)
     setStudentName(user.user_metadata?.full_name || user.user_metadata?.name || '')
+
+    const { data: testBlock } = await supabase
+      .from('test_blocked_students')
+      .select('id')
+      .eq('test_id', testData.id)
+      .eq('student_email', user.email)
+      .maybeSingle()
+    if (testBlock) { setBlockReason('test-blocked'); setPhase('blocked'); return }
+
     if (testData.class_id) {
       const { data: enrollment } = await supabase
         .from('class_students')
@@ -229,10 +238,14 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md p-6 sm:p-8 text-center">
         <UserX className="w-12 h-12 text-red-400 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-ink mb-2">
-          {blockReason === 'blocked' ? "You've been blocked from this class" : "You're not enrolled in this class"}
+          {blockReason === 'test-blocked' ? "You've been blocked from this assessment"
+            : blockReason === 'blocked' ? "You've been blocked from this class"
+            : "You're not enrolled in this class"}
         </h2>
         <p className="text-ink-faint text-sm mb-6">
-          {blockReason === 'blocked'
+          {blockReason === 'test-blocked'
+            ? 'Your teacher has blocked this account from taking this specific assessment.'
+            : blockReason === 'blocked'
             ? 'Your teacher has blocked this account from taking assessments in this class.'
             : "Ask your teacher to add you to the class roster, then try again."}
         </p>
