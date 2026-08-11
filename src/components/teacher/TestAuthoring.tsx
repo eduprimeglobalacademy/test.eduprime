@@ -537,7 +537,7 @@ Note: Mark correct answers with * or put correct answer first (A.)
       ) : (
       <div className={!basicInfoOpen ? 'space-y-6' : 'grid lg:grid-cols-[380px_1fr] gap-6 items-start'}>
         {/* Basic info */}
-        <div className={!basicInfoOpen ? 'w-full' : 'lg:sticky lg:top-24 space-y-4'}>
+        <div className={!basicInfoOpen ? 'grid sm:grid-cols-2 gap-4 items-start' : 'lg:sticky lg:top-24 space-y-4'}>
           <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
             <button
               type="button"
