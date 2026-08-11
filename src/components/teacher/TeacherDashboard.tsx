@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Plus, BarChart3, Clock, Users, LogOut, GraduationCap, Layers, ListChecks, Play, Home, Settings as SettingsIcon } from 'lucide-react'
+import { BookOpen, Plus, BarChart3, Clock, Users, LogOut, GraduationCap, Layers, ListChecks, Play, Home, Settings as SettingsIcon, Star } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -17,11 +17,13 @@ import { ClassDetail } from './ClassDetail'
 import { DashboardHome } from './DashboardHome'
 import { AnalyticsOverview } from './AnalyticsOverview'
 import { TeacherSettings } from './TeacherSettings'
+import { FocusList } from './FocusList'
 import { useClasses } from '../../hooks/useClasses'
+import { useFocusItems } from '../../hooks/useFocusItems'
 import type { Test, Teacher } from '../../lib/supabase'
 
-type ViewMode = 'dashboard' | 'classes' | 'class-detail' | 'assessments' | 'analytics' | 'settings' | 'preview' | 'reports' | 'author'
-type SidebarSection = 'dashboard' | 'classes' | 'assessments' | 'analytics' | 'settings'
+type ViewMode = 'dashboard' | 'classes' | 'class-detail' | 'assessments' | 'analytics' | 'focus' | 'settings' | 'preview' | 'reports' | 'author'
+type SidebarSection = 'dashboard' | 'classes' | 'assessments' | 'analytics' | 'focus' | 'settings'
 
 export function TeacherDashboard() {
   const { user, signOut } = useAuth()
@@ -39,6 +41,7 @@ export function TeacherDashboard() {
   const [authoringClassId, setAuthoringClassId] = useState<string | undefined>(undefined)
   const [returnTo, setReturnTo] = useState<ViewMode>('dashboard')
   const { classes, createClass, updateClass, deleteClass } = useClasses(teacher?.id)
+  const { items: focusItems, addStudentFocus, addClassFocus, removeFocus } = useFocusItems(teacher?.id)
 
   useEffect(() => { fetchData() }, [user])
 
@@ -62,14 +65,20 @@ export function TeacherDashboard() {
   const sidebarSection: SidebarSection =
     effectiveViewMode === 'assessments' ? 'assessments' :
     effectiveViewMode === 'analytics' ? 'analytics' :
+    effectiveViewMode === 'focus' ? 'focus' :
     effectiveViewMode === 'settings' ? 'settings' :
     effectiveViewMode === 'dashboard' ? 'dashboard' : 'classes'
   const goToDashboard = () => { setViewMode('dashboard'); setSelectedClassId('') }
   const goToClasses = () => { setViewMode('classes'); setSelectedClassId('') }
   const goToAssessments = () => { setViewMode('assessments'); setSelectedClassId('') }
   const goToAnalytics = () => { setViewMode('analytics'); setSelectedClassId('') }
+  const goToFocus = () => { setViewMode('focus'); setSelectedClassId('') }
   const goToSettings = () => { setViewMode('settings'); setSelectedClassId('') }
   const openClass = (classId: string) => { setSelectedClassId(classId); setViewMode('class-detail') }
+  const flagStudent = async (email: string, name?: string) => {
+    if (focusItems.some(i => i.kind === 'student' && i.student_email === email)) return
+    await addStudentFocus({ email, name })
+  }
 
   const handlePreview = (testId: string) => { setReturnTo(viewMode); setSelectedTestId(testId); setViewMode('preview') }
   const handleReports = (testId: string) => { setReturnTo(viewMode); setSelectedTestId(testId); setViewMode('reports') }
@@ -85,7 +94,7 @@ export function TeacherDashboard() {
 
   if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
   if (viewMode === 'preview' && selectedTestId) return <TestPreview testId={selectedTestId} onBack={handleBackFromDetail} />
-  if (viewMode === 'reports' && selectedTestId) return <TestReports testId={selectedTestId} onBack={handleBackFromDetail} />
+  if (viewMode === 'reports' && selectedTestId) return <TestReports testId={selectedTestId} onBack={handleBackFromDetail} onFlagStudent={flagStudent} isFlagged={(email) => focusItems.some(i => i.kind === 'student' && i.student_email === email)} />
 
   const draftTests = tests.filter(t => t.status === 'draft')
   const liveTests = tests.filter(t => t.status === 'live')
@@ -197,6 +206,23 @@ export function TeacherDashboard() {
               <BarChart3 className="w-4 h-4" />
               Analytics
             </button>
+
+            <button
+              onClick={goToFocus}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                sidebarSection === 'focus'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <Star className="w-4 h-4" />
+              Focus
+              {focusItems.length > 0 && (
+                <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-full ${sidebarSection === 'focus' ? 'bg-surface/20' : 'bg-surface-2 text-ink-faint'}`}>
+                  {focusItems.length}
+                </span>
+              )}
+            </button>
           </nav>
 
           <div className="mt-auto pt-4 space-y-4">
@@ -302,6 +328,18 @@ export function TeacherDashboard() {
           )}
 
           {viewMode === 'analytics' && <AnalyticsOverview tests={tests} />}
+
+          {viewMode === 'focus' && teacher && (
+            <FocusList
+              tests={tests}
+              classes={classes}
+              items={focusItems}
+              addStudentFocus={addStudentFocus}
+              addClassFocus={addClassFocus}
+              removeFocus={removeFocus}
+              onOpenClass={openClass}
+            />
+          )}
 
           {viewMode === 'settings' && teacher && user && (
             <TeacherSettings teacher={teacher} email={user.email} onTeacherUpdated={fetchData} />

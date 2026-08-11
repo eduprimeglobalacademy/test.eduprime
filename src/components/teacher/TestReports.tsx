@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Download, Users, BarChart3, Clock, Award, TrendingUp, Target } from 'lucide-react'
+import { ArrowLeft, Download, Users, BarChart3, Clock, Award, TrendingUp, Target, Star } from 'lucide-react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import { formatDateTime, exportToCSV } from '../../lib/utils'
@@ -13,6 +13,8 @@ import type { Test, TestAttempt, StudentAnswer } from '../../lib/supabase'
 interface TestReportsProps {
   testId: string
   onBack: () => void
+  onFlagStudent?: (email: string, name?: string) => void
+  isFlagged?: (email: string) => boolean
 }
 
 interface AttemptWithAnswers extends TestAttempt {
@@ -21,7 +23,7 @@ interface AttemptWithAnswers extends TestAttempt {
 
 const GRADE_COLORS = ['#10B981', '#06B6D4', '#F59E0B', '#F97316', '#EF4444']
 
-export function TestReports({ testId, onBack }: TestReportsProps) {
+export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestReportsProps) {
   const { plan } = usePlanLimits()
   const [test, setTest] = useState<Test | null>(null)
   const [attempts, setAttempts] = useState<AttemptWithAnswers[]>([])
@@ -231,7 +233,7 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-app border-b border-app">
-                      {['Learner', 'Score', 'Percentage', 'Grade', 'Time Taken', 'Submitted'].map(h => (
+                      {['Learner', 'Score', 'Percentage', 'Grade', 'Time Taken', 'Submitted', ''].map(h => (
                         <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-ink-faint uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
@@ -262,6 +264,22 @@ export function TestReports({ testId, onBack }: TestReportsProps) {
                             {a.time_taken_seconds ? `${Math.floor(a.time_taken_seconds / 60)}:${(a.time_taken_seconds % 60).toString().padStart(2, '0')}` : '—'}
                           </td>
                           <td className="px-5 py-4 text-ink-soft">{a.submitted_at ? formatDateTime(a.submitted_at) : '—'}</td>
+                          <td className="px-5 py-4">
+                            {onFlagStudent && a.student_email && (
+                              <button
+                                onClick={() => onFlagStudent(a.student_email, a.student_name)}
+                                disabled={isFlagged?.(a.student_email)}
+                                className={`p-1.5 rounded-lg transition-colors ${
+                                  isFlagged?.(a.student_email)
+                                    ? 'text-[var(--brand-primary)]'
+                                    : 'text-ink-muted hover:text-[var(--brand-primary)] hover:bg-[var(--brand-primary-soft)]'
+                                }`}
+                                title={isFlagged?.(a.student_email) ? 'Already in Focus' : 'Add to Focus'}
+                              >
+                                <Star className="w-4 h-4" fill={isFlagged?.(a.student_email) ? 'currentColor' : 'none'} />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       )
                     })}

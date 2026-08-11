@@ -102,6 +102,19 @@ export interface Class {
   created_at: string
 }
 
+export interface TeacherFocusItem {
+  id: string
+  org_id: string
+  teacher_id: string
+  kind: 'student' | 'class'
+  class_id?: string
+  classes?: Pick<Class, 'id' | 'name' | 'course_name' | 'grade_level'> | null
+  student_email?: string
+  student_name?: string
+  note?: string
+  created_at: string
+}
+
 export interface QuestionBankOption {
   id: string
   bank_item_id: string
