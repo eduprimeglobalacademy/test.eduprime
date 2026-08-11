@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Trash2, Copy, Users, Ban, RotateCcw, Search, ChevronDown, QrCode } from 'lucide-react'
+import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Pencil, Check, X, Trash2, Copy, Users, Search, ChevronDown, QrCode, Star, Maximize2 } from 'lucide-react'
 import QRCode from 'qrcode'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -21,11 +21,12 @@ interface ClassDetailProps {
   onEdit: (test: Test) => void
   onReports: (testId: string) => void
   onEditQuestions: (testId: string) => void
+  onFlagStudent?: (email: string, name?: string) => void
 }
 
 export function ClassDetail({
   classId, classes, tests, updateClass, deleteClass, onBack, onTestUpdated,
-  onCreateAssessment, onPreview, onEdit, onReports, onEditQuestions,
+  onCreateAssessment, onPreview, onEdit, onReports, onEditQuestions, onFlagStudent,
 }: ClassDetailProps) {
   const cls = classes.find(c => c.id === classId)
   const [editing, setEditing] = useState(false)
@@ -36,8 +37,10 @@ export function ClassDetail({
   const [rosterSearch, setRosterSearch] = useState('')
   const [rosterOpen, setRosterOpen] = useState(false)
   const [showQr, setShowQr] = useState(false)
+  const [qrFullscreen, setQrFullscreen] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
-  const { roster, setBlocked, removeStudent } = useClassRoster(classId)
+  const [qrDataUrlLarge, setQrDataUrlLarge] = useState('')
+  const { roster, removeStudent } = useClassRoster(classId)
 
   const enrollmentLink = `${window.location.origin}/enroll?class=${classId}`
   const copyLink = () => {
@@ -51,7 +54,11 @@ export function ClassDetail({
     QRCode.toDataURL(enrollmentLink, { width: 160, margin: 1 }).then(setQrDataUrl).catch(() => setQrDataUrl(''))
   }, [showQr, enrollmentLink])
 
-  const blockedCount = roster.filter(s => s.blocked).length
+  useEffect(() => {
+    if (!qrFullscreen) return
+    QRCode.toDataURL(enrollmentLink, { width: 480, margin: 1 }).then(setQrDataUrlLarge).catch(() => setQrDataUrlLarge(''))
+  }, [qrFullscreen, enrollmentLink])
+
   const filteredRoster = useMemo(() => {
     const q = rosterSearch.trim().toLowerCase()
     if (!q) return roster
@@ -170,9 +177,6 @@ export function ClassDetail({
           <h3 className="text-base font-semibold text-ink flex items-center gap-2 flex-wrap">
             <Users className="w-4 h-4 text-[var(--brand-primary)]" />Roster
             <span className="text-xs font-normal text-ink-faint">{roster.length} enrolled</span>
-            {blockedCount > 0 && (
-              <span className="badge text-xs bg-red-50 text-red-600 border border-red-200">{blockedCount} blocked</span>
-            )}
           </h3>
           <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 shrink-0 ${rosterOpen ? 'rotate-180' : ''}`} />
         </button>
@@ -200,11 +204,21 @@ export function ClassDetail({
             </div>
 
             {showQr && (
-              <div className="flex justify-center mb-5">
+              <div className="flex flex-col items-center gap-2 mb-5">
                 {qrDataUrl ? (
-                  <img src={qrDataUrl} alt="QR code for enrollment link" className="rounded-lg border border-app p-2 bg-white" width={160} height={160} />
+                  <button onClick={() => setQrFullscreen(true)} className="group relative" title="Show fullscreen">
+                    <img src={qrDataUrl} alt="QR code for enrollment link" className="rounded-lg border border-app p-2 bg-white" width={160} height={160} />
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 rounded-lg transition-colors">
+                      <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </span>
+                  </button>
                 ) : (
                   <div className="w-40 h-40 rounded-lg border border-app bg-app animate-pulse" />
+                )}
+                {qrDataUrl && (
+                  <button onClick={() => setQrFullscreen(true)} className="text-xs text-[var(--brand-primary)] hover:underline flex items-center gap-1">
+                    <Maximize2 className="w-3 h-3" />Show fullscreen
+                  </button>
                 )}
               </div>
             )}
@@ -231,20 +245,16 @@ export function ClassDetail({
                     {filteredRoster.map(s => (
                       <div key={s.id} className="flex items-center justify-between gap-3 py-2.5">
                         <div className="min-w-0">
-                          <p className={`text-sm font-medium truncate ${s.blocked ? 'text-ink-muted line-through' : 'text-ink'}`}>{s.student_name || s.student_email}</p>
+                          <p className="text-sm font-medium text-ink truncate">{s.student_name || s.student_email}</p>
                           {s.student_name && <p className="text-xs text-ink-faint truncate">{s.student_email}</p>}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          {s.blocked ? (
-                            <Button size="sm" variant="outline" onClick={() => setBlocked(s.id, false)}>
-                              <RotateCcw className="w-3.5 h-3.5" />Unblock
-                            </Button>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={() => setBlocked(s.id, true)} className="text-red-500 border-red-200 hover:bg-red-50">
-                              <Ban className="w-3.5 h-3.5" />Block
-                            </Button>
+                          {onFlagStudent && (
+                            <button onClick={() => onFlagStudent(s.student_email, s.student_name)} className="text-ink-muted hover:text-[var(--brand-primary)]" title="Add to Focus">
+                              <Star className="w-3.5 h-3.5" />
+                            </button>
                           )}
-                          <button onClick={() => removeStudent(s.id)} className="text-ink-muted hover:text-red-500" title="Remove">
+                          <button onClick={() => removeStudent(s.id)} className="text-ink-muted hover:text-red-500" title="Remove from roster">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -273,6 +283,25 @@ export function ClassDetail({
         onReports={onReports}
         onEditQuestions={onEditQuestions}
       />
+
+      {qrFullscreen && (
+        <div
+          className="fixed inset-0 bg-black flex flex-col items-center justify-center p-8 z-50 animate-in cursor-pointer"
+          onClick={() => setQrFullscreen(false)}
+        >
+          <button onClick={() => setQrFullscreen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white" title="Close">
+            <X className="w-8 h-8" />
+          </button>
+          <p className="text-white text-2xl font-bold font-display mb-2">{classLabel(cls)}</p>
+          <p className="text-white/60 text-sm mb-8">Scan to join this class</p>
+          {qrDataUrlLarge ? (
+            <img src={qrDataUrlLarge} alt="QR code for enrollment link" className="rounded-2xl bg-white p-6" width={480} height={480} />
+          ) : (
+            <div className="w-[480px] h-[480px] rounded-2xl bg-white/10 animate-pulse" />
+          )}
+          <code className="text-white/50 text-sm mt-6">{enrollmentLink}</code>
+        </div>
+      )}
     </div>
   )
 }

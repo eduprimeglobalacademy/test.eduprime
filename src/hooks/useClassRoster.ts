@@ -16,17 +16,11 @@ export function useClassRoster(classId: string | undefined) {
 
   useEffect(() => { fetchRoster() }, [fetchRoster])
 
-  const setBlocked = async (id: string, blocked: boolean) => {
-    const { error } = await supabase.from('class_students').update({ blocked }).eq('id', id)
-    if (error) throw error
-    await fetchRoster()
-  }
-
   const removeStudent = async (id: string) => {
     const { error } = await supabase.from('class_students').delete().eq('id', id)
     if (error) throw error
     await fetchRoster()
   }
 
-  return { roster, loading, setBlocked, removeStudent, refetch: fetchRoster }
+  return { roster, loading, removeStudent, refetch: fetchRoster }
 }

@@ -539,7 +539,7 @@ Note: Mark correct answers with * or put correct answer first (A.)
                 {settings.requireGoogleAuth && (
                   <div className="ml-7 pt-1">
                     {testId ? (
-                      <BlockedStudentsPanel testId={testId} />
+                      <BlockedStudentsPanel testId={testId} classId={classId || undefined} />
                     ) : (
                       <p className="text-xs text-ink-muted">Save the assessment to block specific students.</p>
                     )}

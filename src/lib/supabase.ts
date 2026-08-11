@@ -116,7 +116,6 @@ export interface ClassStudent {
   class_id: string
   student_email: string
   student_name?: string
-  blocked: boolean
   joined_at: string
 }
 

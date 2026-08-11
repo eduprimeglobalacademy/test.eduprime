@@ -291,6 +291,7 @@ export function TeacherDashboard() {
               onEdit={(test) => handleAuthorExisting(test.id)}
               onReports={handleReports}
               onEditQuestions={handleAuthorExisting}
+              onFlagStudent={flagStudent}
             />
           )}
 

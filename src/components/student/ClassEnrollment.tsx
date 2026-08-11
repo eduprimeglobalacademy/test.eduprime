@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { GraduationCap, CheckCircle2, AlertCircle } from 'lucide-react'
+import { GraduationCap, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useTenant } from '../../contexts/TenantContext'
 import { Button } from '../ui/Button'
@@ -12,7 +12,9 @@ interface ClassEnrollmentProps {
   orgId?: string
 }
 
-type Phase = 'loading' | 'not-found' | 'sign-in' | 'enrolling' | 'done' | 'error'
+type Phase = 'loading' | 'not-found' | 'sign-in' | 'confirm' | 'enrolling' | 'done' | 'error'
+
+const REDIRECT_DELAY_MS = 2500
 
 export function ClassEnrollment({ classId, orgId }: ClassEnrollmentProps) {
   const { org } = useTenant()
@@ -21,8 +23,17 @@ export function ClassEnrollment({ classId, orgId }: ClassEnrollmentProps) {
   const [cls, setCls] = useState<Class | null>(null)
   const [phase, setPhase] = useState<Phase>('loading')
   const [error, setError] = useState('')
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => { init() }, [classId])
+
+  useEffect(() => {
+    if (phase !== 'done') return
+    const t = setTimeout(() => { window.location.href = `${window.location.origin}/assessment` }, REDIRECT_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [phase])
 
   const init = async () => {
     let query = supabase.from('classes').select('*').eq('id', classId)
@@ -33,23 +44,11 @@ export function ClassEnrollment({ classId, orgId }: ClassEnrollmentProps) {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (user?.email) {
-      await enroll(data.id, user.email, user.user_metadata?.full_name || user.user_metadata?.name)
+      setEmail(user.email)
+      setName(user.user_metadata?.full_name || user.user_metadata?.name || '')
+      setPhase('confirm')
     } else {
       setPhase('sign-in')
-    }
-  }
-
-  const enroll = async (resolvedClassId: string, email: string, name?: string) => {
-    setPhase('enrolling')
-    try {
-      const { error: upsertError } = await supabase
-        .from('class_students')
-        .upsert([{ class_id: resolvedClassId, student_email: email, student_name: name || null }], { onConflict: 'class_id,student_email' })
-      if (upsertError) throw upsertError
-      setPhase('done')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to enroll')
-      setPhase('error')
     }
   }
 
@@ -59,6 +58,25 @@ export function ClassEnrollment({ classId, orgId }: ClassEnrollmentProps) {
       options: { redirectTo: window.location.href },
     })
     if (signInError) { setError(signInError.message); setPhase('error') }
+  }
+
+  const handleConfirm = async () => {
+    if (!cls) return
+    setSaving(true)
+    setError('')
+    setPhase('enrolling')
+    try {
+      const { error: upsertError } = await supabase
+        .from('class_students')
+        .upsert([{ class_id: cls.id, student_email: email, student_name: name.trim() || null }], { onConflict: 'class_id,student_email' })
+      if (upsertError) throw upsertError
+      setPhase('done')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to enroll')
+      setPhase('error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -92,13 +110,44 @@ export function ClassEnrollment({ classId, orgId }: ClassEnrollmentProps) {
             </>
           )}
 
+          {phase === 'confirm' && cls && (
+            <div className="text-left">
+              <div className="text-center mb-6">
+                <GraduationCap className="w-10 h-10 text-[var(--brand-primary)] mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-ink">{classLabel(cls)}</h3>
+                <p className="text-ink-faint text-sm mt-1">Confirm your details to join</p>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-ink-soft mb-1.5">Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="input-base"
+                    placeholder="Your full name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-ink-soft mb-1.5">Email</label>
+                  <input type="email" value={email} readOnly className="input-base opacity-70 cursor-not-allowed" />
+                  <p className="text-xs text-ink-muted mt-1">Verified via Google sign-in</p>
+                </div>
+                <Button onClick={handleConfirm} loading={saving} className="w-full" size="lg">Join Class</Button>
+              </div>
+            </div>
+          )}
+
           {phase === 'enrolling' && <LoadingSpinner size="lg" />}
 
           {phase === 'done' && cls && (
             <>
               <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-ink mb-2">You're enrolled in {classLabel(cls)}</h3>
-              <p className="text-ink-faint text-sm">Your teacher will share a test code when it's time to take an assessment.</p>
+              <p className="text-ink-faint text-sm mb-6">Taking you to the assessment join page…</p>
+              <Button onClick={() => window.location.href = `${window.location.origin}/assessment`} variant="outline" className="w-full">
+                Go now <ArrowRight className="w-4 h-4" />
+              </Button>
             </>
           )}
 
