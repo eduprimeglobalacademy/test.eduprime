@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Plus, BarChart3, Clock, Users, LogOut, GraduationCap, Layers, ListChecks, Play } from 'lucide-react'
+import { BookOpen, Plus, BarChart3, Clock, Users, LogOut, GraduationCap, Layers, ListChecks, Play, Home, Settings as SettingsIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -8,18 +8,20 @@ import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { UsageMeter } from '../ui/UsageMeter'
 import { OrgStatusBanner } from '../billing/OrgStatusBanner'
-import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
 import { TestAuthoring } from './TestAuthoring'
 import { TestDashboard } from './TestDashboard'
 import { TestPreview } from './TestPreview'
 import { TestReports } from './TestReports'
 import { ClassGrid } from './ClassGrid'
 import { ClassDetail } from './ClassDetail'
+import { DashboardHome } from './DashboardHome'
+import { AnalyticsOverview } from './AnalyticsOverview'
+import { TeacherSettings } from './TeacherSettings'
 import { useClasses } from '../../hooks/useClasses'
 import type { Test, Teacher } from '../../lib/supabase'
 
-type ViewMode = 'classes' | 'class-detail' | 'assessments' | 'preview' | 'reports' | 'author'
-type SidebarSection = 'classes' | 'assessments'
+type ViewMode = 'dashboard' | 'classes' | 'class-detail' | 'assessments' | 'analytics' | 'settings' | 'preview' | 'reports' | 'author'
+type SidebarSection = 'dashboard' | 'classes' | 'assessments' | 'analytics' | 'settings'
 
 export function TeacherDashboard() {
   const { user, signOut } = useAuth()
@@ -30,7 +32,7 @@ export function TeacherDashboard() {
   const [teacher, setTeacher] = useState<Teacher | null>(null)
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<ViewMode>('classes')
+  const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const [selectedTestId, setSelectedTestId] = useState<string>('')
   const [authoringTestId, setAuthoringTestId] = useState<string | undefined>(undefined)
@@ -55,9 +57,16 @@ export function TeacherDashboard() {
     }
   }
 
-  const sidebarSection: SidebarSection = viewMode === 'assessments' ? 'assessments' : 'classes'
+  const sidebarSection: SidebarSection =
+    viewMode === 'assessments' ? 'assessments' :
+    viewMode === 'analytics' ? 'analytics' :
+    viewMode === 'settings' ? 'settings' :
+    viewMode === 'dashboard' ? 'dashboard' : 'classes'
+  const goToDashboard = () => { setViewMode('dashboard'); setSelectedClassId('') }
   const goToClasses = () => { setViewMode('classes'); setSelectedClassId('') }
   const goToAssessments = () => { setViewMode('assessments'); setSelectedClassId('') }
+  const goToAnalytics = () => { setViewMode('analytics'); setSelectedClassId('') }
+  const goToSettings = () => { setViewMode('settings'); setSelectedClassId('') }
   const openClass = (classId: string) => { setSelectedClassId(classId); setViewMode('class-detail') }
 
   const handlePreview = (testId: string) => { setSelectedTestId(testId); setViewMode('preview') }
@@ -97,7 +106,6 @@ export function TeacherDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
-              <ConnectGoogleButton />
               <span className="text-sm text-ink-soft hidden md:block">Welcome, {user?.name}</span>
               <Button variant="outline" size="sm" onClick={() => signOut()}>
                 <LogOut className="w-4 h-4" />
@@ -112,6 +120,18 @@ export function TeacherDashboard() {
         {/* Sidebar — full height, true left edge, separated by a border */}
         <aside className="w-64 shrink-0 hidden md:flex flex-col bg-app-outer border-r border-app-strong px-4 py-6">
           <nav className="space-y-1">
+            <button
+              onClick={goToDashboard}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                sidebarSection === 'dashboard'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              Dashboard
+            </button>
+
             <button
               onClick={goToClasses}
               className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -164,26 +184,55 @@ export function TeacherDashboard() {
               <ListChecks className="w-4 h-4" />
               All Assessments
             </button>
+
+            <button
+              onClick={goToAnalytics}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                sidebarSection === 'analytics'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </button>
           </nav>
 
-          <div className="mt-auto pt-6 border-t border-app-strong">
+          <div className="mt-auto pt-4 space-y-4">
+            <button
+              onClick={goToSettings}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors border-t border-app-strong pt-4 ${
+                sidebarSection === 'settings'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <SettingsIcon className="w-4 h-4" />
+              Settings
+            </button>
             {plan && (
-              <UsageMeter
-                label="Active assessments"
-                used={draftTests.length + liveTests.length}
-                limit={plan.max_active_tests}
-                unit="active"
-              />
+              <div className="pt-4 border-t border-app-strong">
+                <UsageMeter
+                  label="Active assessments"
+                  used={draftTests.length + liveTests.length}
+                  limit={plan.max_active_tests}
+                  unit="active"
+                />
+              </div>
             )}
           </div>
         </aside>
 
         {/* Main content */}
-        <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
+        <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8">
           {org && (org.status === 'trial' || org.status === 'past_due' || org.status === 'suspended') && (
             <div className="mb-8">
               <OrgStatusBanner org={org} />
             </div>
+          )}
+
+          {viewMode === 'dashboard' && (
+            <DashboardHome tests={tests} onGoToClasses={goToClasses} onCreateAssessment={() => handleAuthorNew()} onReports={handleReports} />
           )}
 
           {viewMode === 'classes' && (
@@ -249,6 +298,12 @@ export function TeacherDashboard() {
                 onEditQuestions={handleAuthorExisting}
               />
             </>
+          )}
+
+          {viewMode === 'analytics' && <AnalyticsOverview tests={tests} />}
+
+          {viewMode === 'settings' && teacher && user && (
+            <TeacherSettings teacher={teacher} email={user.email} onTeacherUpdated={fetchData} />
           )}
         </div>
       </div>

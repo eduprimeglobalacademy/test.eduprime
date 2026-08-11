@@ -85,7 +85,7 @@ export function ClassGrid({ classes, tests, createClass, onOpenClass }: ClassGri
           <Button onClick={() => setShowCreate(true)}><Plus className="w-4 h-4" />Create your first class</Button>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {classes.map(cls => {
             const stats = statsFor(cls)
             return (

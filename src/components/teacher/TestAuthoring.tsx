@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   ArrowLeft, Save, Settings, GraduationCap, Plus, Trash2, Upload, Download,
-  AlertCircle, GripVertical, BookMarked, Library, Lock,
+  AlertCircle, GripVertical, BookMarked, Library, Lock, FileText, ChevronDown,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useQuestionBank } from '../../hooks/useQuestionBank'
@@ -86,6 +86,8 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const [showBankPicker, setShowBankPicker] = useState(false)
   const [savingToBank, setSavingToBank] = useState<string | null>(null)
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
+  const [openSection, setOpenSection] = useState<'basic' | 'behavior' | 'grading' | null>('basic')
+  const toggleSection = (key: 'basic' | 'behavior' | 'grading') => setOpenSection(prev => prev === key ? null : key)
   const { items: bankItems, saveToBank, deleteFromBank } = useQuestionBank(teacherId)
 
   const update = (key: keyof SettingsForm, value: any) => setSettings(prev => ({ ...prev, [key]: value }))
@@ -408,124 +410,161 @@ Note: Mark correct answers with * or put correct answer first (A.)
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid lg:grid-cols-[380px_1fr] gap-6 items-start">
         {/* Left: settings */}
         <div className="lg:sticky lg:top-24 space-y-4">
-          <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
-            <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
-            <Input
-              label="Assessment Title *"
-              placeholder="e.g. Midterm Mathematics Exam"
-              value={settings.title}
-              onChange={(e) => update('title', e.target.value)}
-              required
-            />
-            <Input
-              label="Description"
-              placeholder="Brief description (optional)"
-              value={settings.description}
-              onChange={(e) => update('description', e.target.value)}
-            />
-            <Input
-              label="Duration (minutes)"
-              type="number"
-              placeholder="Leave empty for no time limit"
-              value={settings.durationMinutes}
-              onChange={(e) => update('durationMinutes', e.target.value)}
-              min="1"
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Start Time"
-                type="datetime-local"
-                value={settings.startTime}
-                onChange={(e) => update('startTime', e.target.value)}
-              />
-              <Input
-                label="End Time"
-                type="datetime-local"
-                value={settings.endTime}
-                onChange={(e) => update('endTime', e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-              <Settings className="w-4 h-4 text-[var(--brand-primary)]" />
-              Assessment Behavior
-            </div>
-            {[
-              { key: 'showResults' as const, label: 'Show results to students after submission', desc: 'Students will see their score, grade, and question review' },
-              { key: 'allowNavigationBack' as const, label: 'Allow backward navigation', desc: 'Students can go back to previous questions during the test' },
-            ].map(({ key, label, desc }) => (
-              <label key={key} className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
-                <input
-                  type="checkbox"
-                  checked={settings[key]}
-                  onChange={(e) => update(key, e.target.checked)}
-                  className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
-                />
-                <div>
-                  <p className="text-sm font-medium text-ink-soft">{label}</p>
-                  <p className="text-xs text-ink-faint mt-0.5">{desc}</p>
-                </div>
-              </label>
-            ))}
-            <label className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
-              <input
-                type="checkbox"
-                checked={settings.perQuestionTiming}
-                onChange={(e) => update('perQuestionTiming', e.target.checked)}
-                className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
-              />
-              <div>
-                <p className="text-sm font-medium text-ink-soft">Per-question timing</p>
-                <p className="text-xs text-ink-faint mt-0.5">Each question has its own timer. Questions auto-advance when time expires.</p>
-              </div>
-            </label>
-            {settings.perQuestionTiming && (
-              <div className="ml-7">
+          <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('basic')}
+              className="w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+                <FileText className="w-4 h-4 text-[var(--brand-primary)]" />
+                Basic Info
+              </span>
+              <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'basic' ? 'rotate-180' : ''}`} />
+            </button>
+            {openSection === 'basic' && (
+              <div className="border-t border-app px-5 sm:px-6 py-5 space-y-4">
+                <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
                 <Input
-                  label="Default time per question (seconds)"
-                  type="number"
-                  min="5"
-                  value={settings.timePerQuestion}
-                  onChange={(e) => update('timePerQuestion', e.target.value)}
+                  label="Assessment Title *"
+                  placeholder="e.g. Midterm Mathematics Exam"
+                  value={settings.title}
+                  onChange={(e) => update('title', e.target.value)}
+                  required
                 />
+                <Input
+                  label="Description"
+                  placeholder="Brief description (optional)"
+                  value={settings.description}
+                  onChange={(e) => update('description', e.target.value)}
+                />
+                <Input
+                  label="Duration (minutes)"
+                  type="number"
+                  placeholder="Leave empty for no time limit"
+                  value={settings.durationMinutes}
+                  onChange={(e) => update('durationMinutes', e.target.value)}
+                  min="1"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Start Time"
+                    type="datetime-local"
+                    value={settings.startTime}
+                    onChange={(e) => update('startTime', e.target.value)}
+                  />
+                  <Input
+                    label="End Time"
+                    type="datetime-local"
+                    value={settings.endTime}
+                    onChange={(e) => update('endTime', e.target.value)}
+                  />
+                </div>
               </div>
             )}
           </div>
 
-          <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-              <GraduationCap className="w-4 h-4 text-[var(--brand-primary)]" />
-              Grade Boundaries (%)
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { key: 'aGrade' as const, label: 'A minimum' },
-                { key: 'bGrade' as const, label: 'B minimum' },
-                { key: 'cGrade' as const, label: 'C minimum' },
-                { key: 'dGrade' as const, label: 'D minimum' },
-              ].map(({ key, label }) => (
+          <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('behavior')}
+              className="w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+                <Settings className="w-4 h-4 text-[var(--brand-primary)]" />
+                Assessment Behavior
+              </span>
+              <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'behavior' ? 'rotate-180' : ''}`} />
+            </button>
+            {openSection === 'behavior' && (
+              <div className="border-t border-app px-5 sm:px-6 py-5 space-y-3">
+                {[
+                  { key: 'showResults' as const, label: 'Show results to students after submission', desc: 'Students will see their score, grade, and question review' },
+                  { key: 'allowNavigationBack' as const, label: 'Allow backward navigation', desc: 'Students can go back to previous questions during the test' },
+                ].map(({ key, label, desc }) => (
+                  <label key={key} className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settings[key]}
+                      onChange={(e) => update(key, e.target.checked)}
+                      className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-ink-soft">{label}</p>
+                      <p className="text-xs text-ink-faint mt-0.5">{desc}</p>
+                    </div>
+                  </label>
+                ))}
+                <label className="flex items-start gap-3 cursor-pointer p-2.5 rounded-xl hover:bg-app transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={settings.perQuestionTiming}
+                    onChange={(e) => update('perQuestionTiming', e.target.checked)}
+                    className="w-4 h-4 rounded text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-ink-soft">Per-question timing</p>
+                    <p className="text-xs text-ink-faint mt-0.5">Each question has its own timer. Questions auto-advance when time expires.</p>
+                  </div>
+                </label>
+                {settings.perQuestionTiming && (
+                  <div className="ml-7">
+                    <Input
+                      label="Default time per question (seconds)"
+                      type="number"
+                      min="5"
+                      value={settings.timePerQuestion}
+                      onChange={(e) => update('timePerQuestion', e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('grading')}
+              className="w-full flex items-center justify-between px-5 sm:px-6 py-4 text-left"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+                <GraduationCap className="w-4 h-4 text-[var(--brand-primary)]" />
+                Grade Boundaries (%)
+              </span>
+              <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${openSection === 'grading' ? 'rotate-180' : ''}`} />
+            </button>
+            {openSection === 'grading' && (
+              <div className="border-t border-app px-5 sm:px-6 py-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { key: 'aGrade' as const, label: 'A minimum' },
+                    { key: 'bGrade' as const, label: 'B minimum' },
+                    { key: 'cGrade' as const, label: 'C minimum' },
+                    { key: 'dGrade' as const, label: 'D minimum' },
+                  ].map(({ key, label }) => (
+                    <Input
+                      key={key}
+                      label={label}
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={settings[key]}
+                      onChange={(e) => update(key, e.target.value)}
+                    />
+                  ))}
+                </div>
                 <Input
-                  key={key}
-                  label={label}
+                  label="Passing grade minimum (%)"
                   type="number"
                   min="0"
                   max="100"
-                  value={settings[key]}
-                  onChange={(e) => update(key, e.target.value)}
+                  value={settings.passingGrade}
+                  onChange={(e) => update('passingGrade', e.target.value)}
+                  helper="Scores below this are considered failing (F)"
                 />
-              ))}
-            </div>
-            <Input
-              label="Passing grade minimum (%)"
-              type="number"
-              min="0"
-              max="100"
-              value={settings.passingGrade}
-              onChange={(e) => update('passingGrade', e.target.value)}
-              helper="Scores below this are considered failing (F)"
-            />
+              </div>
+            )}
           </div>
 
           {settingsError && (

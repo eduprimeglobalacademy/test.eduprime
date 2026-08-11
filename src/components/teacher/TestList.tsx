@@ -56,7 +56,7 @@ export function TestList({ tests, onTestUpdated, onPreview, onEdit, onReports, o
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid lg:grid-cols-2 gap-4 items-start">
       {tests.map(test => {
         const { label, cls, icon: StatusIcon } = statusConfig[test.status as keyof typeof statusConfig] || statusConfig.draft
         return (
