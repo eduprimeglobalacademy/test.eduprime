@@ -3,6 +3,7 @@ import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { Button } from '../ui/Button'
 import { useTenant } from '../../contexts/TenantContext'
+import { TestWatermark } from './TestWatermark'
 
 function hexToRgb(hex: string): [number, number, number] {
   const m = hex.replace('#', '')
@@ -86,6 +87,7 @@ export function TestResults({ results }: TestResultsProps) {
 
   return (
     <div className="min-h-screen bg-app py-8 px-4">
+      <TestWatermark text={`${studentName} · ${studentEmail}`} />
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Score card */}
         <div className="bg-surface rounded-2xl border border-app shadow-sm p-8 text-center">

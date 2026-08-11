@@ -35,6 +35,7 @@ export function TeacherDashboard() {
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
   const [teacher, setTeacher] = useState<Teacher | null>(null)
   const [tests, setTests] = useState<Test[]>([])
+  const [orgActiveTestCount, setOrgActiveTestCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
   const [selectedClassId, setSelectedClassId] = useState<string>('')
@@ -57,6 +58,12 @@ export function TeacherDashboard() {
       if (teacherData) {
         const { data: testsData } = await supabase.from('tests').select('*, classes(id, name, course_name, grade_level)').eq('teacher_id', teacherData.id).order('created_at', { ascending: false })
         setTests(testsData || [])
+        // org-wide, not just this teacher's own tests — max_active_tests is
+        // an org-level limit, and a teacher can only SELECT their own rows.
+        if (teacherData.org_id) {
+          const { data: count } = await supabase.rpc('org_active_test_count', { p_org_id: teacherData.org_id })
+          setOrgActiveTestCount(count ?? 0)
+        }
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -267,7 +274,7 @@ export function TeacherDashboard() {
               <div className="pt-4 border-t border-app-strong">
                 <UsageMeter
                   label="Active assessments"
-                  used={draftTests.length + liveTests.length}
+                  used={orgActiveTestCount}
                   limit={plan.max_active_tests}
                   unit="active"
                 />

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useTenant } from '../../contexts/TenantContext'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
+import { TestWatermark } from './TestWatermark'
 import type { Test, Question, QuestionOption } from '../../lib/supabase'
 
 interface TestInterfaceProps {
@@ -373,6 +374,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
 
   return (
     <div className="theme-dark min-h-screen bg-app">
+      <TestWatermark text={`${studentName} · ${studentEmail}`} />
       {/* Header */}
       <header className="page-header">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

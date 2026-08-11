@@ -13,7 +13,7 @@ import { BillingPanel } from './BillingPanel'
 import { BrandingCard } from './BrandingCard'
 import { OrgStatusBanner } from '../billing/OrgStatusBanner'
 import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
-import { WelcomeOnboarding } from './WelcomeOnboarding'
+import { OnboardingFlow } from './OnboardingFlow'
 
 interface TeacherToken {
   id: string; token: string; teacher_name: string; phone_number: string;
@@ -80,6 +80,17 @@ export function AdminDashboard() {
 
   const createToken = async () => {
     if (!newToken.teacher_name.trim() || !newToken.phone_number.trim()) return
+
+    // Checked client-side first for an accurate message — the DB also
+    // hard-enforces this (org_within_teacher_limit), but its rejection is
+    // a generic 42501 that's indistinguishable from a billing-status
+    // block, which would otherwise show the wrong reason here.
+    const { activeTokens } = getTokenStats()
+    if (plan?.max_teachers != null && teachers.length + activeTokens >= plan.max_teachers) {
+      setTokenError(`You've reached your plan's educator limit (${plan.max_teachers}). Upgrade your plan or free up a seat to add more.`)
+      return
+    }
+
     setCreating(true)
     setTokenError('')
     try {
@@ -92,7 +103,7 @@ export function AdminDashboard() {
       console.error('Error creating token:', error)
       const code = (error && typeof error === 'object' && 'code' in error) ? (error as { code: string }).code : undefined
       setTokenError(code === '42501'
-        ? 'New educator tokens are paused for this organization until billing is resolved.'
+        ? "New educator tokens are paused — either this organization's billing needs attention, or your plan's educator limit has been reached."
         : 'Failed to create token. Please try again.')
     } finally {
       setCreating(false)
@@ -177,6 +188,24 @@ export function AdminDashboard() {
   })
 
   if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
+
+  if (showWelcome && org) {
+    return (
+      <OnboardingFlow
+        org={org}
+        onViewBilling={() => {
+          setShowWelcome(false)
+          window.history.replaceState(null, '', window.location.pathname)
+          setViewMode('billing')
+        }}
+        onFinish={() => {
+          setShowWelcome(false)
+          window.history.replaceState(null, '', window.location.pathname)
+          fetchData()
+        }}
+      />
+    )
+  }
 
   const stats = getTokenStats()
 
@@ -513,16 +542,6 @@ export function AdminDashboard() {
         </div>
       )}
 
-      {showWelcome && (
-        <WelcomeOnboarding
-          orgName={orgName}
-          slug={org?.slug}
-          onDismiss={() => {
-            setShowWelcome(false)
-            window.history.replaceState(null, '', window.location.pathname)
-          }}
-        />
-      )}
     </div>
   )
 }

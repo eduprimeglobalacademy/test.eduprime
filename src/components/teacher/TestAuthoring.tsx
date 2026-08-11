@@ -4,6 +4,8 @@ import {
   AlertCircle, GripVertical, BookMarked, Library, FileText, Settings as SettingsIcon, Eye, BarChart3,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useTenant } from '../../contexts/TenantContext'
+import { usePlanLimits } from '../../hooks/usePlanLimits'
 import { useQuestionBank } from '../../hooks/useQuestionBank'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -81,6 +83,8 @@ const fmtLocal = (s: string) => {
 const letters = ['A', 'B', 'C', 'D', 'E', 'F']
 
 export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId, onBack, onTestSaved, onOpenSettings, onPreview, onReports }: TestAuthoringProps) {
+  const { org } = useTenant()
+  const { plan } = usePlanLimits()
   const [testId, setTestId] = useState<string | undefined>(initialTestId)
   const [loading, setLoading] = useState(!!initialTestId)
   const [classId, setClassId] = useState(initialClassId || '')
@@ -180,6 +184,17 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
     if (settings.startTime && settings.endTime && new Date(settings.startTime) >= new Date(settings.endTime)) {
       setSettingsError('Start time must be before end time'); return
     }
+    // Checked client-side first for an accurate message — the DB also
+    // hard-enforces this (org_within_active_test_limit), but its rejection
+    // is a generic 42501 indistinguishable from a billing-status block.
+    if (!testId && plan?.max_active_tests != null && org?.id) {
+      const { data: activeCount } = await supabase.rpc('org_active_test_count', { p_org_id: org.id })
+      if ((activeCount ?? 0) >= plan.max_active_tests) {
+        setSettingsError(`Your plan's active assessment limit (${plan.max_active_tests}) is reached. Close an existing assessment or upgrade your plan to create another.`)
+        return
+      }
+    }
+
     setSavingSettings(true)
     try {
       if (!testId) {
@@ -207,7 +222,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
     } catch (err) {
       const code = (err && typeof err === 'object' && 'code' in err) ? (err as { code: string }).code : undefined
       setSettingsError(code === '42501'
-        ? 'New assessments are paused for this organization until billing is resolved. Contact your administrator.'
+        ? "New assessments are paused — either this organization's billing needs attention, or your plan's active-assessment limit has been reached. Contact your administrator."
         : err instanceof Error ? err.message : 'Failed to save assessment')
     } finally {
       setSavingSettings(false)
