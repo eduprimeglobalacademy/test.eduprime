@@ -56,7 +56,7 @@ serve(async (req) => {
       })
     }
 
-    const { planId } = await req.json()
+    const { planId, offerId } = await req.json()
     const { data: plan } = await supabaseAdmin.from('plans').select('*').eq('id', planId).maybeSingle()
     if (!plan || !plan.razorpay_plan_id) {
       return new Response(JSON.stringify({ error: 'That plan is not available for self-serve checkout — contact us.' }), {
@@ -97,6 +97,7 @@ serve(async (req) => {
         customer_notify: 1,
         total_count: TOTAL_BILLING_CYCLES,
         notes: { org_id: org.id, org_slug: org.slug },
+        ...(typeof offerId === 'string' && offerId ? { offer_id: offerId } : {}),
       }),
     })
 

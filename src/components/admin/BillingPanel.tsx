@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, CreditCard, Receipt, ExternalLink, Plus, Minus, X } from 'lucide-react'
+import { Check, CreditCard, Receipt, ExternalLink, Plus, Minus, X, Tag } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Plan, Subscription } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -53,6 +53,10 @@ export function BillingPanel() {
   const [error, setError] = useState('')
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [promoCode, setPromoCode] = useState('')
+  const [applyingPromo, setApplyingPromo] = useState(false)
+  const [promoMessage, setPromoMessage] = useState('')
+  const [pendingOfferId, setPendingOfferId] = useState<string | null>(null)
 
   useEffect(() => { fetchData() }, [org?.id])
 
@@ -107,7 +111,7 @@ export function BillingPanel() {
           Authorization: `Bearer ${session?.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, offerId: pendingOfferId || undefined }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Could not start checkout.')
@@ -118,12 +122,42 @@ export function BillingPanel() {
         orgName: result.orgName,
         adminEmail: result.adminEmail,
         planName: result.planName,
-        onSuccess: () => fetchData(),
+        onSuccess: () => { setPendingOfferId(null); setPromoMessage(''); fetchData() },
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
       setCheckingOut(null)
+    }
+  }
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return
+    setApplyingPromo(true)
+    setError('')
+    setPromoMessage('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-apply-promo`
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoCode.trim() }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'That code is not valid.')
+
+      if (result.applied) {
+        setPromoMessage(result.message || 'Promo applied.')
+        await fetchData()
+      } else {
+        setPendingOfferId(result.offerId)
+        setPromoMessage(result.message || 'Promo applied — pick a plan below to use it.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not apply that code.')
+    } finally {
+      setApplyingPromo(false)
     }
   }
 
@@ -234,6 +268,23 @@ export function BillingPanel() {
       {error && (
         <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{error}</div>
       )}
+
+      <Card>
+        <div className="flex items-center gap-2 mb-3">
+          <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
+          <h3 className="text-sm font-semibold text-ink">Have a promo code?</h3>
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            placeholder="PROMOCODE"
+            className="input-base flex-1 font-mono text-sm uppercase"
+          />
+          <Button variant="outline" loading={applyingPromo} onClick={handleApplyPromo}>Apply</Button>
+        </div>
+        {promoMessage && <p className="text-sm text-emerald-600 mt-2">{promoMessage}</p>}
+      </Card>
 
       <div className="grid sm:grid-cols-3 gap-6">
         {plans.map((plan) => {

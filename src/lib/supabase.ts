@@ -39,6 +39,10 @@ export interface Plan {
   is_public: boolean
   addon_teacher_price_inr: number | null
   addon_test_price_inr: number | null
+  addon_student_price_inr: number | null
+  razorpay_addon_teacher_plan_id: string | null
+  razorpay_addon_test_plan_id: string | null
+  razorpay_addon_student_plan_id: string | null
 }
 
 export type SubscriptionStatus = 'created' | 'authenticated' | 'active' | 'pending' | 'halted' | 'cancelled' | 'completed'

@@ -16,7 +16,6 @@ async function razorpay(path: string, options: RequestInit = {}) {
     ...options,
     headers: { ...options.headers, Authorization: RAZORPAY_AUTH, 'Content-Type': 'application/json' },
   })
-  if (res.status === 204) return null
   const body = await res.json()
   if (!res.ok) throw new Error(body?.error?.description || 'Razorpay request failed')
   return body
@@ -51,32 +50,57 @@ serve(async (req) => {
       })
     }
 
-    const { addonId } = await req.json()
-    const { data: addonRow } = await supabaseAdmin
-      .from('org_capacity_addons').select('*').eq('id', addonId).eq('org_id', adminUser.org_id).maybeSingle()
-    if (!addonRow || addonRow.status !== 'active' || addonRow.mode !== 'recurring') {
-      return new Response(JSON.stringify({ error: 'Add-on not found.' }), {
+    const { code } = await req.json()
+    if (!code?.trim()) {
+      return new Response(JSON.stringify({ error: 'Enter a promo code.' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    if (addonRow.razorpay_addon_subscription_id) {
-      await razorpay(`/subscriptions/${addonRow.razorpay_addon_subscription_id}/cancel`, {
-        method: 'POST',
-        body: JSON.stringify({ cancel_at_cycle_end: 0 }),
+    // Mirrors the admin_reads_redeemable_promotions RLS policy — this
+    // function runs as service_role and bypasses RLS, so the same
+    // validation has to be re-checked explicitly here.
+    const nowIso = new Date().toISOString()
+    const { data: promo } = await supabaseAdmin
+      .from('promotions').select('*')
+      .ilike('code', code.trim())
+      .eq('status', 'active')
+      .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+      .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
+      .or(`org_id.is.null,org_id.eq.${adminUser.org_id}`)
+      .maybeSingle()
+
+    if (!promo || !promo.razorpay_offer_id) {
+      return new Response(JSON.stringify({ error: 'That code is not valid.' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    await supabaseAdmin.from('org_capacity_addons').update({ status: 'cancelled' }).eq('id', addonId)
+    const { data: subscription } = await supabaseAdmin
+      .from('subscriptions').select('*').eq('org_id', adminUser.org_id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
 
+    if (subscription && !['cancelled', 'completed'].includes(subscription.status)) {
+      await razorpay(`/subscriptions/${subscription.razorpay_subscription_id}`, {
+        method: 'POST',
+        body: JSON.stringify({ offer_id: promo.razorpay_offer_id }),
+      })
+      return new Response(
+        JSON.stringify({ applied: true, message: 'Promo applied to your subscription.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // No active subscription yet — hand the offer id back so the client
+    // can carry it into razorpay-create-subscription when they subscribe.
     return new Response(
-      JSON.stringify({ ok: true }),
+      JSON.stringify({ applied: false, offerId: promo.razorpay_offer_id, message: promo.discount_note || 'Promo applied — pick a plan to use it.' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('razorpay-remove-addon error:', error)
+    console.error('razorpay-apply-promo error:', error)
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to remove add-on.' }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Could not apply that code.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
