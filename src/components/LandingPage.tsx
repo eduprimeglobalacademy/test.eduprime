@@ -16,7 +16,7 @@ export function LandingPage() {
   const orgLogo = org?.logo_url || DEFAULT_LOGO
 
   return (
-    <div className="min-h-screen bg-surface overflow-x-hidden">
+    <div className="min-h-screen bg-surface overflow-x-hidden flex flex-col">
       {/* Nav */}
       <nav className="border-b border-app bg-surface/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -36,7 +36,7 @@ export function LandingPage() {
       </nav>
 
       {/* Hero — portal, not pitch: this is the org's own entry point for people who already belong here */}
-      <section className="relative pt-16 pb-20 overflow-hidden">
+      <section className="relative flex-1 flex items-center pt-16 pb-20 overflow-hidden">
         <div className="absolute inset-0 bg-app-outer" />
         <div className="absolute top-20 right-0 w-72 h-72 bg-[var(--brand-primary-soft)] rounded-full blur-3xl opacity-40" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-[var(--brand-secondary-soft)] rounded-full blur-3xl opacity-30" />
