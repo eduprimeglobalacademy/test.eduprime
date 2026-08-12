@@ -54,11 +54,10 @@ export async function consumeSessionHandoff(): Promise<boolean> {
   const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
   if (error) return false
 
-  // Handoff arrived from the standalone admin app's "view as" flow, not
-  // this app's own startImpersonation() — no return session to stash
-  // (the admin's real session lives on the admin app's own origin), but
-  // the banner still needs orgName/adminEmail to render and exitImpersonation
-  // needs to know there's nothing to restore.
+  // Handoff arrived from the standalone admin app's "view as" flow — no
+  // return session to stash (the admin's real session lives on the admin
+  // app's own origin), but the banner still needs orgName/adminEmail to
+  // render and exitImpersonation needs to know there's nothing to restore.
   if (impersonating && orgName && adminEmail) {
     sessionStorage.setItem(IMPERSONATION_KEY, JSON.stringify({
       orgName,
@@ -278,40 +277,6 @@ export function getImpersonationState(): ImpersonationState | null {
   } catch {
     return null
   }
-}
-
-/**
- * Platform-admin-only: switches the current browser session to an org's
- * admin (default) or a specific educator within that org (teacherId), for
- * support.
- */
-export async function startImpersonation(orgId: string, teacherId?: string): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) throw new Error('Not signed in.')
-
-  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/impersonate-org`
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orgId, teacherId }),
-  })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.error || 'Failed to start impersonation.')
-
-  // Stash the platform admin's own session before overwriting it, so
-  // exitImpersonation can restore it exactly.
-  sessionStorage.setItem(IMPERSONATION_KEY, JSON.stringify({
-    orgName: result.orgName,
-    adminEmail: result.adminEmail,
-    returnAccessToken: session.access_token,
-    returnRefreshToken: session.refresh_token,
-  } satisfies ImpersonationState))
-
-  const { error } = await supabase.auth.setSession({
-    access_token: result.accessToken,
-    refresh_token: result.refreshToken,
-  })
-  if (error) throw error
 }
 
 export async function exitImpersonation(): Promise<void> {

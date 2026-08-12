@@ -9,8 +9,10 @@ import { ClassEnrollment } from './components/student/ClassEnrollment'
 import { LoadingSpinner } from './components/ui/LoadingSpinner'
 import { OrgNotFound } from './components/tenant/OrgNotFound'
 import { RootMarketing } from './components/tenant/RootMarketing'
-import { SuperAdminConsole } from './components/superadmin/SuperAdminConsole'
 import { ImpersonationBanner } from './components/superadmin/ImpersonationBanner'
+import { ShieldCheck } from 'lucide-react'
+
+const PLATFORM_CONSOLE_URL = 'https://admin.test.eduprimeglobalacademy.com'
 
 function AppContent() {
   const { user, loading } = useAuth()
@@ -45,11 +47,28 @@ function AppContent() {
     )
   }
 
-  // Platform staff aren't scoped to any org — this check comes before
-  // tenant resolution matters, so the console is reachable even from an
-  // org's own subdomain or a mistyped one.
+  // Platform staff aren't scoped to any org, and the console they need
+  // lives in a separate app now (own repo/deploy — see eduprime-admin) so
+  // it doesn't ship platform-only code in every customer's bundle. This
+  // check still comes before tenant resolution so it catches a platform
+  // admin signing in from any host, including a mistyped one.
   if (user?.role === 'platform_admin') {
-    return <SuperAdminConsole />
+    return (
+      <div className="min-h-screen bg-app flex items-center justify-center p-4">
+        <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-md p-8 text-center">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 mx-auto bg-[var(--brand-primary-soft)]">
+            <ShieldCheck className="w-6 h-6 text-[var(--brand-primary)]" />
+          </div>
+          <h1 className="text-lg font-bold text-ink mb-1.5">Wrong app for platform staff</h1>
+          <p className="text-sm text-ink-faint mb-6">
+            Platform admin accounts sign in at the dedicated admin console, not here.
+          </p>
+          <a href={PLATFORM_CONSOLE_URL} className="btn-primary w-full inline-flex items-center justify-center">
+            Go to admin console
+          </a>
+        </div>
+      </div>
+    )
   }
 
   if (notFound) {
