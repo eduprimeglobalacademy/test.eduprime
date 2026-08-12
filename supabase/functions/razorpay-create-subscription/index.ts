@@ -66,6 +66,19 @@ serve(async (req) => {
 
     const { data: org } = await supabaseAdmin.from('organizations').select('*').eq('id', adminUser.org_id).single()
 
+    // Switching plans while already subscribed would otherwise leave two
+    // concurrent Razorpay subscriptions running (this only ever creates,
+    // never replaces) — cancel whatever's currently active/pending first.
+    const { data: existingSub } = await supabaseAdmin
+      .from('subscriptions').select('*').eq('org_id', org.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (existingSub && !['cancelled', 'completed'].includes(existingSub.status)) {
+      await razorpay(`/subscriptions/${existingSub.razorpay_subscription_id}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ cancel_at_cycle_end: 0 }),
+      }).catch((err) => console.error('Failed to cancel prior subscription before switching plans:', err))
+    }
+
     let razorpayCustomerId = org.razorpay_customer_id
     if (!razorpayCustomerId) {
       const customer = await razorpay('/customers', {
