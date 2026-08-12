@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, CreditCard, Palette, ArrowLeft } from 'lucide-react'
+import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, Home, CreditCard, Palette } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -210,10 +210,10 @@ export function AdminDashboard() {
   const stats = getTokenStats()
 
   return (
-    <div className="min-h-screen bg-app">
+    <div className="min-h-screen bg-app flex flex-col">
       {/* Header */}
       <header className="page-header">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3 min-w-0">
               <img src={orgLogo} alt={orgName} className="w-8 h-8 object-contain rounded-lg shrink-0" />
@@ -225,27 +225,6 @@ export function AdminDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
-              {viewMode === 'dashboard' ? (
-                <>
-                  <Button variant="outline" onClick={() => setViewMode('branding')} size="sm">
-                    <Palette className="w-4 h-4" />
-                    <span className="hidden sm:inline">Branding</span>
-                  </Button>
-                  <Button variant="outline" onClick={() => setViewMode('billing')} size="sm">
-                    <CreditCard className="w-4 h-4" />
-                    <span className="hidden sm:inline">Billing</span>
-                  </Button>
-                  <Button variant="outline" onClick={() => { setRefreshing(true); fetchData() }} disabled={refreshing} size="sm">
-                    <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                    <span className="hidden sm:inline">Refresh</span>
-                  </Button>
-                </>
-              ) : (
-                <Button variant="outline" onClick={() => setViewMode('dashboard')} size="sm">
-                  <ArrowLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">Back</span>
-                </Button>
-              )}
               <ConnectGoogleButton />
               <span className="text-sm text-ink-soft hidden md:block">Welcome, {user?.name}</span>
               <Button variant="outline" size="sm" onClick={() => signOut()}>
@@ -257,8 +236,76 @@ export function AdminDashboard() {
         </div>
       </header>
 
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar — same shell as the educator dashboard, so the two roles
+            read as one product instead of an admin settings page bolted
+            onto a real app. */}
+        <aside className="w-64 shrink-0 hidden md:flex flex-col bg-app-outer border-r border-app-strong px-4 py-6">
+          <nav className="space-y-1">
+            <button
+              onClick={() => setViewMode('dashboard')}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                viewMode === 'dashboard'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              Dashboard
+            </button>
+
+            <button
+              onClick={() => setViewMode('branding')}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                viewMode === 'branding'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <Palette className="w-4 h-4" />
+              Branding
+            </button>
+
+            <button
+              onClick={() => setViewMode('billing')}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                viewMode === 'billing'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              Billing
+            </button>
+          </nav>
+
+          <div className="mt-auto pt-4 space-y-4">
+            <button
+              onClick={() => { setRefreshing(true); fetchData() }}
+              disabled={refreshing}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors text-ink-soft hover:bg-surface border-t border-app-strong pt-4"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            {plan && (
+              <div className="pt-4 border-t border-app-strong">
+                <UsageMeter label="Educators" used={teachers.length} limit={plan.max_teachers} unit="used" />
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Main content */}
+        <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8">
+          {org && (org.status === 'past_due' || org.status === 'suspended') && (
+            <div className="mb-8">
+              <OrgStatusBanner org={org} />
+            </div>
+          )}
+
       {viewMode === 'billing' ? (
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-3xl">
           <div className="mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-ink">Billing</h2>
             <p className="text-ink-faint mt-1">Manage your organization's plan and subscription</p>
@@ -266,7 +313,7 @@ export function AdminDashboard() {
           <BillingPanel />
         </div>
       ) : viewMode === 'branding' ? (
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-2xl">
           <div className="mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-ink">Branding</h2>
             <p className="text-ink-faint mt-1">Your logo and colors — shown everywhere your students and educators see this platform</p>
@@ -274,17 +321,11 @@ export function AdminDashboard() {
           {org && <BrandingCard org={org} />}
         </div>
       ) : (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div>
         <div className="mb-8">
           <h2 className="text-2xl sm:text-3xl font-bold text-ink">Educator Management</h2>
           <p className="text-ink-faint mt-1">Manage educator access tokens and registered accounts</p>
         </div>
-
-        {org && (org.status === 'past_due' || org.status === 'suspended') && (
-          <div className="mb-8">
-            <OrgStatusBanner org={org} />
-          </div>
-        )}
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -314,11 +355,6 @@ export function AdminDashboard() {
               Create New Educator Token
             </CardTitle>
           </CardHeader>
-          {plan && (
-            <div className="mb-5">
-              <UsageMeter label="Educators" used={teachers.length} limit={plan.max_teachers} unit="used" />
-            </div>
-          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Educator Name"
@@ -499,6 +535,8 @@ export function AdminDashboard() {
         </div>
       </div>
       )}
+        </div>
+      </div>
 
       {/* Revoke Modal */}
       {showRevokeModal.show && showRevokeModal.teacher && (
