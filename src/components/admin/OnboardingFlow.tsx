@@ -99,7 +99,7 @@ export function OnboardingFlow({ org, onViewBilling, onFinish }: OnboardingFlowP
             </div>
             <h1 className="text-2xl font-bold text-ink mb-1.5">Welcome to {org.name}</h1>
             <p className="text-sm text-ink-faint mb-6">
-              You're on a 14-day free trial with full Growth-tier access, no card needed. Pick a plan now if you already know what you need, or skip it — nothing is limited during your trial.
+              You're on a 14-day free trial, no card needed — 1 educator and 1 active assessment, enough to try things out. Pick a plan now for full capacity, or skip it and upgrade whenever you're ready.
             </p>
             <div className="grid sm:grid-cols-3 gap-3 mb-6">
               {plans.map((plan) => (

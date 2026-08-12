@@ -57,6 +57,7 @@ serve(async (req) => {
         name: orgName.trim(),
         slug: normalizedSlug,
         status: 'trial',
+        plan_id: 'trial',
         trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
         primary_color: brandColor,
         secondary_color: brandColor,
