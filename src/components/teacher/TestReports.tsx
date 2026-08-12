@@ -63,9 +63,11 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
 
   // Capacity gates VIEWING results past the included limit, never
   // submitting one — every student who takes the test is fully recorded
-  // regardless of plan. Metered-billing orgs pay for actual usage, so
-  // they're never capped here. First-submitted-first-unlocked.
-  const effectiveStudentLimit = org?.student_billing_mode === 'metered'
+  // regardless of plan. Metered-billing orgs pay for actual usage, and
+  // public exams (hiring/onboarding — unknown, unbounded participants)
+  // are exempt entirely, so neither is ever capped here.
+  // First-submitted-first-unlocked.
+  const effectiveStudentLimit = org?.student_billing_mode === 'metered' || test?.is_public_exam
     ? null
     : plan?.max_students_per_test != null ? plan.max_students_per_test + extraStudentCapacity : null
   const unlockedIds = effectiveStudentLimit == null

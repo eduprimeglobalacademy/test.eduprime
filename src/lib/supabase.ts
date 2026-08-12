@@ -7,7 +7,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Types
 export type UserRole = 'platform_admin' | 'admin' | 'teacher'
-export type TestStatus = 'draft' | 'live' | 'closed'
+export type TestStatus = 'draft' | 'live' | 'closed' | 'pending_approval'
 export type OrgStatus = 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled'
 
 export interface Organization {
@@ -187,6 +187,9 @@ export interface Test {
   allow_navigation_back: boolean
   per_question_timing: boolean
   require_google_auth: boolean
+  is_public_exam: boolean
+  approved_by?: string
+  approved_at?: string
   created_at: string
   updated_at: string
   grading_config?: {

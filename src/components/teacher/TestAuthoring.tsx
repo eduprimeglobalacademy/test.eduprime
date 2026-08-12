@@ -88,6 +88,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const [testId, setTestId] = useState<string | undefined>(initialTestId)
   const [loading, setLoading] = useState(!!initialTestId)
   const [classId, setClassId] = useState(initialClassId || '')
+  const [isPublicExam, setIsPublicExam] = useState(false)
   const [testStatus, setTestStatus] = useState<string | undefined>(undefined)
   const [settings, setSettings] = useState<SettingsForm>(EMPTY_SETTINGS)
   const [savingSettings, setSavingSettings] = useState(false)
@@ -159,7 +160,8 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   }
 
   const buildPayload = () => ({
-    class_id: classId || null,
+    class_id: isPublicExam ? null : (classId || null),
+    is_public_exam: isPublicExam,
     title: settings.title,
     description: settings.description || null,
     duration_minutes: settings.durationMinutes ? parseInt(settings.durationMinutes) : null,
@@ -208,7 +210,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
         const { data, error: createError } = await supabase.from('tests').insert([{
           teacher_id: teacherId,
           test_code: testCode,
-          status: 'draft',
+          status: isPublicExam ? 'pending_approval' : 'draft',
           ...buildPayload(),
         }]).select().single()
         if (createError) throw createError
@@ -487,7 +489,19 @@ Note: Mark correct answers with * or put correct answer first (A.)
               <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft mb-1">
                 <FileText className="w-4 h-4 text-[var(--brand-primary)]" />Basic Info
               </div>
-              <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
+              <label className="flex items-start gap-2.5 p-3 rounded-xl border border-app bg-app cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isPublicExam}
+                  onChange={(e) => setIsPublicExam(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-ink">Public exam (hiring, onboarding — no enrolled class)</span>
+                  <span className="block text-xs text-ink-faint mt-0.5">Open to an unknown number of outside participants. Requires your org admin's approval before it can go live.</span>
+                </span>
+              </label>
+              {!isPublicExam && <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />}
               <Input
                 label="Assessment Title *"
                 placeholder="e.g. Midterm Mathematics Exam"

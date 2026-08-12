@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, Home, CreditCard, Palette, BarChart3 } from 'lucide-react'
+import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, Home, CreditCard, Palette, BarChart3, Hourglass } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -16,6 +16,7 @@ import { OrgStatusBanner } from '../billing/OrgStatusBanner'
 import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
 import { OnboardingFlow } from './OnboardingFlow'
 import { EducatorAnalytics } from './EducatorAnalytics'
+import { PendingApprovals } from './PendingApprovals'
 
 interface TeacherToken {
   id: string; token: string; teacher_name: string; phone_number: string;
@@ -32,7 +33,7 @@ export function AdminDashboard() {
   const { extraTeachers } = useAddonCapacity()
   const orgName = org?.name || 'EduPrime Global Academy'
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
-  const [viewMode, setViewMode] = useState<'dashboard' | 'billing' | 'branding' | 'analytics'>('dashboard')
+  const [viewMode, setViewMode] = useState<'dashboard' | 'billing' | 'branding' | 'analytics' | 'approvals'>('dashboard')
   const [showWelcome, setShowWelcome] = useState(() => new URLSearchParams(window.location.search).get('welcome') === '1')
   const [tokens, setTokens] = useState<TeacherToken[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -273,6 +274,18 @@ export function AdminDashboard() {
             </button>
 
             <button
+              onClick={() => setViewMode('approvals')}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                viewMode === 'approvals'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <Hourglass className="w-4 h-4" />
+              Approvals
+            </button>
+
+            <button
               onClick={() => setViewMode('branding')}
               className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 viewMode === 'branding'
@@ -343,6 +356,14 @@ export function AdminDashboard() {
             <p className="text-ink-faint mt-1">What each educator is building and how students are doing</p>
           </div>
           {org && <EducatorAnalytics orgId={org.id} />}
+        </div>
+      ) : viewMode === 'approvals' ? (
+        <div>
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-ink">Pending Approvals</h2>
+            <p className="text-ink-faint mt-1">Public exams need your sign-off before they can go live</p>
+          </div>
+          {org && <PendingApprovals orgId={org.id} />}
         </div>
       ) : viewMode === 'branding' ? (
         <div className="max-w-2xl">

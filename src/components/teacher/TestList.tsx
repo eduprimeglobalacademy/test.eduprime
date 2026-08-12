@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Copy, ExternalLink, Calendar, Clock, Play, XCircle, RotateCcw, Layers } from 'lucide-react'
+import { Copy, ExternalLink, Calendar, Clock, Play, XCircle, RotateCcw, Layers, Hourglass } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatDateTime } from '../../lib/utils'
 import { classLabel } from '../../hooks/useClasses'
@@ -42,6 +42,7 @@ export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
     draft: { label: 'Draft', cls: 'bg-amber-50 text-amber-700 border border-amber-200', icon: Clock },
     live: { label: 'Active', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200', icon: Play },
     closed: { label: 'Completed', cls: 'bg-surface-2 text-ink-soft border border-app', icon: XCircle },
+    pending_approval: { label: 'Pending Approval', cls: 'bg-amber-50 text-amber-700 border border-amber-200', icon: Hourglass },
   }
 
   return (
@@ -132,15 +133,21 @@ export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
               )}
 
               <div className="flex items-center justify-end">
-                <Button
-                  size="sm"
-                  variant={test.status === 'draft' ? 'primary' : test.status === 'live' ? 'danger' : 'secondary'}
-                  onClick={(e) => handleToggleStatus(e, test)}
-                >
-                  {test.status === 'draft' && <><Play className="w-3.5 h-3.5" />Activate</>}
-                  {test.status === 'live' && <><XCircle className="w-3.5 h-3.5" />Close</>}
-                  {test.status === 'closed' && <><RotateCcw className="w-3.5 h-3.5" />Reactivate</>}
-                </Button>
+                {test.status === 'pending_approval' ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <Hourglass className="w-3.5 h-3.5" />Awaiting admin approval
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant={test.status === 'draft' ? 'primary' : test.status === 'live' ? 'danger' : 'secondary'}
+                    onClick={(e) => handleToggleStatus(e, test)}
+                  >
+                    {test.status === 'draft' && <><Play className="w-3.5 h-3.5" />Activate</>}
+                    {test.status === 'live' && <><XCircle className="w-3.5 h-3.5" />Close</>}
+                    {test.status === 'closed' && <><RotateCcw className="w-3.5 h-3.5" />Reactivate</>}
+                  </Button>
+                )}
               </div>
             </div>
           </div>
