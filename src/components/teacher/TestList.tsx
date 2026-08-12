@@ -14,12 +14,21 @@ interface TestListProps {
 
 export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
   const [copying, setCopying] = useState<string | null>(null)
+  const [toggleError, setToggleError] = useState('')
 
   const handleToggleStatus = async (e: React.MouseEvent, test: Test) => {
     e.stopPropagation()
+    setToggleError('')
     const newStatus = test.status === 'draft' ? 'live' : test.status === 'live' ? 'closed' : 'draft'
     const { error } = await supabase.from('tests').update({ status: newStatus }).eq('id', test.id)
-    if (!error) onTestUpdated()
+    if (error) {
+      const code = (error && typeof error === 'object' && 'code' in error) ? (error as { code: string }).code : undefined
+      setToggleError(code === '42501'
+        ? "Can't reactivate — you're at your plan's active test limit. Close another test, buy more slots from Billing, or upgrade your plan."
+        : 'Could not update this test. Please try again.')
+      return
+    }
+    onTestUpdated()
   }
 
   const copyToClipboard = async (e: React.MouseEvent, text: string, key: string) => {
@@ -36,7 +45,11 @@ export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-4 items-start">
+    <div>
+      {toggleError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{toggleError}</div>
+      )}
+      <div className="grid lg:grid-cols-2 gap-4 items-start">
       {tests.map(test => {
         const { label, cls, icon: StatusIcon } = statusConfig[test.status as keyof typeof statusConfig] || statusConfig.draft
         return (
@@ -133,6 +146,7 @@ export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
