@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, Home, CreditCard, Palette } from 'lucide-react'
+import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, Home, CreditCard, Palette, BarChart3 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -14,6 +14,7 @@ import { BrandingCard } from './BrandingCard'
 import { OrgStatusBanner } from '../billing/OrgStatusBanner'
 import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
 import { OnboardingFlow } from './OnboardingFlow'
+import { EducatorAnalytics } from './EducatorAnalytics'
 
 interface TeacherToken {
   id: string; token: string; teacher_name: string; phone_number: string;
@@ -29,7 +30,7 @@ export function AdminDashboard() {
   const { plan } = usePlanLimits()
   const orgName = org?.name || 'EduPrime Global Academy'
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
-  const [viewMode, setViewMode] = useState<'dashboard' | 'billing' | 'branding'>('dashboard')
+  const [viewMode, setViewMode] = useState<'dashboard' | 'billing' | 'branding' | 'analytics'>('dashboard')
   const [showWelcome, setShowWelcome] = useState(() => new URLSearchParams(window.location.search).get('welcome') === '1')
   const [tokens, setTokens] = useState<TeacherToken[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -166,7 +167,9 @@ export function AdminDashboard() {
 
   const getTokenStatus = (token: TeacherToken) => {
     if (token.status === 'used') return { label: 'Used', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
-    if (new Date(token.expires_at) <= new Date()) return { label: 'Expired', cls: 'bg-red-50 text-red-700 border-red-200' }
+    const msLeft = new Date(token.expires_at).getTime() - Date.now()
+    if (msLeft <= 0) return { label: 'Expired', cls: 'bg-red-50 text-red-700 border-red-200' }
+    if (msLeft <= 48 * 60 * 60 * 1000) return { label: 'Expiring soon', cls: 'bg-amber-50 text-amber-700 border-amber-200' }
     return { label: 'Active', cls: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] border-[var(--brand-primary-soft)]' }
   }
 
@@ -255,6 +258,18 @@ export function AdminDashboard() {
             </button>
 
             <button
+              onClick={() => setViewMode('analytics')}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                viewMode === 'analytics'
+                  ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-sm'
+                  : 'text-ink-soft hover:bg-surface'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </button>
+
+            <button
               onClick={() => setViewMode('branding')}
               className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 viewMode === 'branding'
@@ -298,7 +313,7 @@ export function AdminDashboard() {
 
         {/* Main content */}
         <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8">
-          {org && (org.status === 'past_due' || org.status === 'suspended') && (
+          {org && (org.status === 'past_due' || org.status === 'suspended' || org.status === 'cancelled') && (
             <div className="mb-8">
               <OrgStatusBanner org={org} />
             </div>
@@ -311,6 +326,14 @@ export function AdminDashboard() {
             <p className="text-ink-faint mt-1">Manage your organization's plan and subscription</p>
           </div>
           <BillingPanel />
+        </div>
+      ) : viewMode === 'analytics' ? (
+        <div>
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-ink">Educator Analytics</h2>
+            <p className="text-ink-faint mt-1">What each educator is building and how students are doing</p>
+          </div>
+          {org && <EducatorAnalytics orgId={org.id} />}
         </div>
       ) : viewMode === 'branding' ? (
         <div className="max-w-2xl">

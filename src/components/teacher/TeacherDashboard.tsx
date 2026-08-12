@@ -285,7 +285,7 @@ export function TeacherDashboard() {
 
         {/* Main content */}
         <div className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8">
-          {org && (org.status === 'trial' || org.status === 'past_due' || org.status === 'suspended') && (
+          {org && (org.status === 'trial' || org.status === 'past_due' || org.status === 'suspended' || org.status === 'cancelled') && (
             <div className="mb-8">
               <OrgStatusBanner org={org} />
             </div>

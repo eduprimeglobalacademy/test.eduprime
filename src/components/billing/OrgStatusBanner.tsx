@@ -22,12 +22,36 @@ export function OrgStatusBanner({ org, subscription }: OrgStatusBannerProps) {
   }
 
   if (org.status === 'past_due' && org.grace_ends_at) {
+    const graceExpired = new Date(org.grace_ends_at) <= new Date()
+    if (graceExpired) {
+      return (
+        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-900">Access restricted — grace period ended</p>
+            <p className="text-xs text-red-700 mt-0.5">Your grace period ended {formatDateTime(org.grace_ends_at)}. New assessments and educator tokens are paused until payment succeeds. Existing tests, results, and students in progress are unaffected.</p>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
         <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-medium text-amber-900">Payment failed — your last renewal didn't go through</p>
           <p className="text-xs text-amber-700 mt-0.5">Full access continues until {formatDateTime(org.grace_ends_at)}. After that, new assessments and educator tokens are paused until payment succeeds.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (org.status === 'cancelled') {
+    return (
+      <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+        <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium text-red-900">Subscription cancelled</p>
+          <p className="text-xs text-red-700 mt-0.5">Creating new assessments and educator tokens is paused. Existing tests, results, and students in progress are unaffected. Subscribe to a plan to regain full access.</p>
         </div>
       </div>
     )
