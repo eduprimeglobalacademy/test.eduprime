@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
 import { usePlanLimits } from '../../hooks/usePlanLimits'
+import { useAddonCapacity } from '../../hooks/useAddonCapacity'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { UsageMeter } from '../ui/UsageMeter'
@@ -31,6 +32,7 @@ export function TeacherDashboard() {
   const { user, signOut } = useAuth()
   const { org } = useTenant()
   const { plan } = usePlanLimits()
+  const { extraActiveTests } = useAddonCapacity()
   const orgName = org?.name || 'EduPrime Global Academy'
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
   const [teacher, setTeacher] = useState<Teacher | null>(null)
@@ -275,8 +277,9 @@ export function TeacherDashboard() {
                 <UsageMeter
                   label="Active assessments"
                   used={orgActiveTestCount}
-                  limit={plan.max_active_tests}
+                  limit={plan.max_active_tests != null ? plan.max_active_tests + extraActiveTests : null}
                   unit="active"
+                  atLimitMessage="You've reached your active-test limit. Buy more slots from Billing, or upgrade your plan."
                 />
               </div>
             )}

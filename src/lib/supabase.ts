@@ -37,6 +37,8 @@ export interface Plan {
   price_inr: number | null
   sort_order: number
   is_public: boolean
+  addon_teacher_price_inr: number | null
+  addon_test_price_inr: number | null
 }
 
 export type SubscriptionStatus = 'created' | 'authenticated' | 'active' | 'pending' | 'halted' | 'cancelled' | 'completed'

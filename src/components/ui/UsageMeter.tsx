@@ -3,9 +3,10 @@ interface UsageMeterProps {
   used: number
   limit: number | null // null = unlimited
   unit: string
+  atLimitMessage?: string
 }
 
-export function UsageMeter({ label, used, limit, unit }: UsageMeterProps) {
+export function UsageMeter({ label, used, limit, unit, atLimitMessage }: UsageMeterProps) {
   if (limit === null) {
     return (
       <div className="flex items-center justify-between text-xs text-ink-faint">
@@ -32,7 +33,7 @@ export function UsageMeter({ label, used, limit, unit }: UsageMeterProps) {
       </div>
       {atLimit && (
         <p className="text-xs text-red-600 mt-1.5">
-          You've reached your plan's {label.toLowerCase()} limit. Contact us to move to a higher tier.
+          {atLimitMessage || `You've reached your plan's ${label.toLowerCase()} limit. Contact us to move to a higher tier.`}
         </p>
       )}
     </div>

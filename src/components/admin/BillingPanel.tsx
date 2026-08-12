@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Check, CreditCard, Receipt, ExternalLink } from 'lucide-react'
+import { Check, CreditCard, Receipt, ExternalLink, Plus, Minus, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Plan, Subscription } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
-import { openRazorpayCheckout } from '../../lib/razorpay'
+import { openRazorpayCheckout, openRazorpayOrderCheckout } from '../../lib/razorpay'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
@@ -21,12 +21,33 @@ interface Invoice {
   issuedAt: string | null
 }
 
+type AddonKind = 'extra_teachers' | 'extra_active_tests'
+
+interface CapacityAddon {
+  id: string
+  kind: AddonKind
+  quantity: number
+  mode: 'recurring' | 'one_time'
+  status: string
+  unit_price_inr: number
+  expires_at: string | null
+}
+
+const ADDON_LABEL: Record<AddonKind, string> = {
+  extra_teachers: 'Teacher seats',
+  extra_active_tests: 'Active test slots',
+}
+
 export function BillingPanel() {
   const { user } = useAuth()
   const { org } = useTenant()
   const [plans, setPlans] = useState<Plan[]>([])
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [addons, setAddons] = useState<CapacityAddon[]>([])
+  const [addonQty, setAddonQty] = useState<Record<AddonKind, number>>({ extra_teachers: 1, extra_active_tests: 1 })
+  const [purchasingAddon, setPurchasingAddon] = useState<AddonKind | null>(null)
+  const [removingAddonId, setRemovingAddonId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [checkingOut, setCheckingOut] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -62,6 +83,11 @@ export function BillingPanel() {
       } catch {
         // Invoice history is supplementary — a failure here shouldn't block the rest of the billing page.
       }
+
+      const { data: addonData } = await supabase
+        .from('org_capacity_addons').select('*').eq('org_id', org.id).eq('status', 'active')
+        .order('created_at', { ascending: false })
+      setAddons(addonData || [])
     }
     setLoading(false)
   }
@@ -120,9 +146,84 @@ export function BillingPanel() {
     }
   }
 
+  const handlePurchaseRecurringAddon = async (kind: AddonKind) => {
+    setError('')
+    setPurchasingAddon(kind)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-purchase-addon`
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, quantity: addonQty[kind] }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Could not purchase add-on.')
+      await fetchData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setPurchasingAddon(null)
+    }
+  }
+
+  const handlePurchaseOneTimeBump = async (kind: AddonKind) => {
+    if (!org) return
+    setError('')
+    setPurchasingAddon(kind)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-purchase-capacity-bump`
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, quantity: addonQty[kind] }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Could not start checkout.')
+
+      await openRazorpayOrderCheckout({
+        orderId: result.orderId,
+        razorpayKeyId: result.razorpayKeyId,
+        amount: result.amount,
+        orgName: result.orgName,
+        adminEmail: result.adminEmail,
+        description: result.description,
+        onSuccess: () => fetchData(),
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setPurchasingAddon(null)
+    }
+  }
+
+  const handleRemoveAddon = async (addonId: string) => {
+    setError('')
+    setRemovingAddonId(addonId)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-remove-addon`
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addonId }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Could not remove add-on.')
+      await fetchData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setRemovingAddonId(null)
+    }
+  }
+
   if (loading) return <div className="py-16 flex justify-center"><LoadingSpinner size="lg" /></div>
 
   const canCancel = subscription && !['cancelled', 'completed'].includes(subscription.status)
+  const currentPlan = plans.find(p => p.id === org?.plan_id)
+  const hasSubscription = subscription && !['cancelled', 'completed'].includes(subscription.status)
 
   return (
     <div className="space-y-6">
@@ -175,6 +276,88 @@ export function BillingPanel() {
           )
         })}
       </div>
+
+      {currentPlan && (currentPlan.addon_teacher_price_inr != null || currentPlan.addon_test_price_inr != null) && (
+        <Card>
+          <h3 className="text-base font-semibold text-ink mb-1">Add capacity</h3>
+          <p className="text-sm text-ink-faint mb-5">Need more than your plan includes? Buy extra seats or test slots without changing tiers.</p>
+
+          <div className="space-y-5">
+            {(['extra_teachers', 'extra_active_tests'] as const).map((kind) => {
+              const unitPrice = kind === 'extra_teachers' ? currentPlan.addon_teacher_price_inr : currentPlan.addon_test_price_inr
+              if (unitPrice == null) return null
+              const qty = addonQty[kind]
+              return (
+                <div key={kind} className="border border-app rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="font-medium text-ink text-sm">{ADDON_LABEL[kind]}</p>
+                    <p className="text-xs text-ink-faint">₹{unitPrice}/unit</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-1.5 border border-app rounded-lg px-1">
+                      <button
+                        type="button"
+                        onClick={() => setAddonQty(q => ({ ...q, [kind]: Math.max(1, q[kind] - 1) }))}
+                        className="p-1.5 text-ink-faint hover:text-ink"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-sm font-medium text-ink w-6 text-center">{qty}</span>
+                      <button
+                        type="button"
+                        onClick={() => setAddonQty(q => ({ ...q, [kind]: q[kind] + 1 }))}
+                        className="p-1.5 text-ink-faint hover:text-ink"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {hasSubscription && (
+                      <Button
+                        variant="outline" size="sm"
+                        loading={purchasingAddon === kind}
+                        onClick={() => handlePurchaseRecurringAddon(kind)}
+                      >
+                        +{qty} · ₹{unitPrice * qty}/mo recurring
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline" size="sm"
+                      loading={purchasingAddon === kind}
+                      onClick={() => handlePurchaseOneTimeBump(kind)}
+                    >
+                      +{qty} · ₹{unitPrice * qty} this cycle only
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {addons.length > 0 && (
+            <div className="mt-5 pt-5 border-t border-app space-y-2">
+              <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-2">Active add-ons</p>
+              {addons.map((addon) => (
+                <div key={addon.id} className="flex items-center justify-between text-sm">
+                  <span className="text-ink-soft">
+                    +{addon.quantity} {ADDON_LABEL[addon.kind]} · ₹{addon.unit_price_inr * addon.quantity}
+                    {addon.mode === 'recurring' ? '/mo' : addon.expires_at ? ` until ${new Date(addon.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ' this cycle'}
+                  </span>
+                  {addon.mode === 'recurring' && (
+                    <button
+                      onClick={() => handleRemoveAddon(addon.id)}
+                      disabled={removingAddonId === addon.id}
+                      className="text-ink-muted hover:text-red-500 transition-colors"
+                      title="Remove add-on"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       {invoices.length > 0 && (
         <Card>

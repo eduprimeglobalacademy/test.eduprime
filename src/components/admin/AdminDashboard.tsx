@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
 import { usePlanLimits } from '../../hooks/usePlanLimits'
+import { useAddonCapacity } from '../../hooks/useAddonCapacity'
 import { Button } from '../ui/Button'
 import { Card, CardHeader, CardTitle } from '../ui/Card'
 import { Input } from '../ui/Input'
@@ -28,6 +29,7 @@ export function AdminDashboard() {
   const { user, signOut } = useAuth()
   const { org } = useTenant()
   const { plan } = usePlanLimits()
+  const { extraTeachers } = useAddonCapacity()
   const orgName = org?.name || 'EduPrime Global Academy'
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
   const [viewMode, setViewMode] = useState<'dashboard' | 'billing' | 'branding' | 'analytics'>('dashboard')
@@ -87,8 +89,9 @@ export function AdminDashboard() {
     // a generic 42501 that's indistinguishable from a billing-status
     // block, which would otherwise show the wrong reason here.
     const { activeTokens } = getTokenStats()
-    if (plan?.max_teachers != null && teachers.length + activeTokens >= plan.max_teachers) {
-      setTokenError(`You've reached your plan's educator limit (${plan.max_teachers}). Upgrade your plan or free up a seat to add more.`)
+    const effectiveTeacherLimit = plan?.max_teachers != null ? plan.max_teachers + extraTeachers : null
+    if (effectiveTeacherLimit != null && teachers.length + activeTokens >= effectiveTeacherLimit) {
+      setTokenError(`You've reached your educator limit (${effectiveTeacherLimit}). Buy more seats from Billing, or upgrade your plan.`)
       return
     }
 
@@ -305,7 +308,13 @@ export function AdminDashboard() {
             </button>
             {plan && (
               <div className="pt-4 border-t border-app-strong">
-                <UsageMeter label="Educators" used={teachers.length} limit={plan.max_teachers} unit="used" />
+                <UsageMeter
+                  label="Educators"
+                  used={teachers.length}
+                  limit={plan.max_teachers != null ? plan.max_teachers + extraTeachers : null}
+                  unit="used"
+                  atLimitMessage="You've reached your educator limit. Buy more seats from Billing, or upgrade your plan."
+                />
               </div>
             )}
           </div>

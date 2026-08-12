@@ -47,3 +47,36 @@ export async function openRazorpayCheckout(params: OpenCheckoutParams) {
   })
   razorpay.open()
 }
+
+interface OpenOrderCheckoutParams {
+  orderId: string
+  razorpayKeyId: string
+  amount: number
+  orgName: string
+  adminEmail: string
+  description: string
+  themeColor?: string
+  onSuccess: () => void
+  onDismiss?: () => void
+}
+
+// One-time payment (Razorpay Order), not a subscription — used for capacity
+// bumps, which work even for orgs with no subscription/mandate on file yet.
+export async function openRazorpayOrderCheckout(params: OpenOrderCheckoutParams) {
+  await loadCheckoutScript()
+  if (!window.Razorpay) throw new Error('Razorpay checkout unavailable')
+
+  const razorpay = new window.Razorpay({
+    key: params.razorpayKeyId,
+    order_id: params.orderId,
+    amount: params.amount,
+    currency: 'INR',
+    name: params.orgName,
+    description: params.description,
+    prefill: { email: params.adminEmail },
+    theme: { color: params.themeColor || '#4f46e5' },
+    handler: () => params.onSuccess(),
+    modal: { ondismiss: () => params.onDismiss?.() },
+  })
+  razorpay.open()
+}

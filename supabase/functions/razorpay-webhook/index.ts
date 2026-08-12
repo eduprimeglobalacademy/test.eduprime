@@ -41,19 +41,36 @@ serve(async (req) => {
   }
 
   const event = JSON.parse(rawBody)
-  const subscriptionEntity = event?.payload?.subscription?.entity
-  const razorpaySubscriptionId = subscriptionEntity?.id
-
-  if (!razorpaySubscriptionId) {
-    // Event type we don't key off a subscription (e.g. a bare payment
-    // event) — acknowledge so Razorpay doesn't retry, nothing to do.
-    return new Response('ok', { status: 200 })
-  }
 
   const supabaseAdmin = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
+
+  // One-time capacity-bump payments are order-based, not subscription-based
+  // — no subscription.entity on this event at all. Capacity is only ever
+  // granted here, never on the client's optimistic Checkout callback, same
+  // discipline as every subscription status change in this file.
+  if (event.event === 'payment.captured') {
+    const orderId = event?.payload?.payment?.entity?.order_id
+    if (orderId) {
+      const { data: addonRow } = await supabaseAdmin
+        .from('org_capacity_addons').select('id').eq('razorpay_order_id', orderId).eq('status', 'pending').maybeSingle()
+      if (addonRow) {
+        await supabaseAdmin.from('org_capacity_addons').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', addonRow.id)
+      }
+    }
+    return new Response('ok', { status: 200 })
+  }
+
+  const subscriptionEntity = event?.payload?.subscription?.entity
+  const razorpaySubscriptionId = subscriptionEntity?.id
+
+  if (!razorpaySubscriptionId) {
+    // Event type we don't key off a subscription — acknowledge so
+    // Razorpay doesn't retry, nothing to do.
+    return new Response('ok', { status: 200 })
+  }
 
   const { data: subscription } = await supabaseAdmin
     .from('subscriptions').select('*').eq('razorpay_subscription_id', razorpaySubscriptionId).maybeSingle()

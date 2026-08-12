@@ -188,9 +188,15 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
     // hard-enforces this (org_within_active_test_limit), but its rejection
     // is a generic 42501 indistinguishable from a billing-status block.
     if (!testId && plan?.max_active_tests != null && org?.id) {
-      const { data: activeCount } = await supabase.rpc('org_active_test_count', { p_org_id: org.id })
-      if ((activeCount ?? 0) >= plan.max_active_tests) {
-        setSettingsError(`Your plan's active assessment limit (${plan.max_active_tests}) is reached. Close an existing assessment or upgrade your plan to create another.`)
+      const [{ data: activeCount }, { data: addons }] = await Promise.all([
+        supabase.rpc('org_active_test_count', { p_org_id: org.id }),
+        supabase.from('org_capacity_addons').select('quantity, expires_at').eq('org_id', org.id).eq('status', 'active').eq('kind', 'extra_active_tests'),
+      ])
+      const now = Date.now()
+      const extra = (addons || []).filter(a => !a.expires_at || new Date(a.expires_at).getTime() > now).reduce((s, a) => s + a.quantity, 0)
+      const effectiveLimit = plan.max_active_tests + extra
+      if ((activeCount ?? 0) >= effectiveLimit) {
+        setSettingsError(`Your active assessment limit (${effectiveLimit}) is reached. Close an existing assessment, buy more slots from Billing, or upgrade your plan.`)
         return
       }
     }
