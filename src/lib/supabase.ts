@@ -24,6 +24,7 @@ export interface Organization {
   razorpay_customer_id?: string
   custom_domain?: string
   custom_domain_status?: 'pending' | 'active'
+  student_billing_mode: 'capped' | 'metered'
   created_at: string
 }
 

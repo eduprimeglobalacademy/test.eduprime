@@ -3,6 +3,19 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const WEBHOOK_SECRET = Deno.env.get('RAZORPAY_WEBHOOK_SECRET') ?? ''
 const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000
+const RAZORPAY_KEY_ID = Deno.env.get('RAZORPAY_KEY_ID') ?? ''
+const RAZORPAY_KEY_SECRET = Deno.env.get('RAZORPAY_KEY_SECRET') ?? ''
+const RAZORPAY_AUTH = 'Basic ' + btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)
+
+async function razorpay(path: string, options: RequestInit = {}) {
+  const res = await fetch(`https://api.razorpay.com/v1${path}`, {
+    ...options,
+    headers: { ...options.headers, Authorization: RAZORPAY_AUTH, 'Content-Type': 'application/json' },
+  })
+  const body = await res.json()
+  if (!res.ok) throw new Error(body?.error?.description || 'Razorpay request failed')
+  return body
+}
 
 async function hmacHex(secret: string, body: string): Promise<string> {
   const key = await crypto.subtle.importKey(
@@ -76,7 +89,34 @@ serve(async (req) => {
     .from('subscriptions').select('*').eq('razorpay_subscription_id', razorpaySubscriptionId).maybeSingle()
 
   if (!subscription) {
-    console.error('razorpay-webhook: unknown subscription', razorpaySubscriptionId)
+    // Add-on subscriptions (extra_teachers/extra_active_tests/extra_students)
+    // aren't rows in `subscriptions` — they're tracked only via
+    // org_capacity_addons.razorpay_addon_subscription_id. The one thing that
+    // needs to happen here: a metered-billing addon recalculates its own
+    // `quantity` for the *next* cycle based on actual usage in the period
+    // that was just charged — the closest real primitive Razorpay offers to
+    // metered billing (no native usage-based billing API exists, confirmed).
+    if (event.event === 'subscription.charged') {
+      const { data: addonRow } = await supabaseAdmin
+        .from('org_capacity_addons').select('*')
+        .eq('razorpay_addon_subscription_id', razorpaySubscriptionId).eq('mode', 'metered').eq('status', 'active')
+        .maybeSingle()
+      if (addonRow) {
+        const { count } = await supabaseAdmin
+          .from('test_attempts').select('id, tests!inner(org_id)', { count: 'exact', head: true })
+          .eq('tests.org_id', addonRow.org_id)
+          .eq('is_submitted', true)
+          .gte('submitted_at', addonRow.updated_at)
+        const nextQuantity = Math.max(1, count ?? 1)
+        await razorpay(`/subscriptions/${razorpaySubscriptionId}`, {
+          method: 'POST',
+          body: JSON.stringify({ quantity: nextQuantity, schedule_change_at: 'cycle_end' }),
+        }).catch((err) => console.error('Failed to update metered addon quantity:', err))
+        await supabaseAdmin.from('org_capacity_addons')
+          .update({ quantity: nextQuantity, updated_at: new Date().toISOString() })
+          .eq('id', addonRow.id)
+      }
+    }
     return new Response('ok', { status: 200 })
   }
 

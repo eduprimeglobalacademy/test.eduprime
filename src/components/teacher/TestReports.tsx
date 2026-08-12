@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Download, Users, BarChart3, Clock, Award, TrendingUp, Target, Star } from 'lucide-react'
+import { ArrowLeft, Download, Users, BarChart3, Clock, Award, TrendingUp, Target, Star, Lock, Sparkles } from 'lucide-react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import { formatDateTime, exportToCSV } from '../../lib/utils'
 import { usePlanLimits } from '../../hooks/usePlanLimits'
+import { useTenant } from '../../contexts/TenantContext'
 import { classLabel } from '../../hooks/useClasses'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
@@ -25,8 +26,10 @@ const GRADE_COLORS = ['#10B981', '#06B6D4', '#F59E0B', '#F97316', '#EF4444']
 
 export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestReportsProps) {
   const { plan } = usePlanLimits()
+  const { org } = useTenant()
   const [test, setTest] = useState<Test | null>(null)
   const [attempts, setAttempts] = useState<AttemptWithAnswers[]>([])
+  const [extraStudentCapacity, setExtraStudentCapacity] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -40,6 +43,17 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
       const { data: attData, error: ae } = await supabase.from('test_attempts').select('*, student_answers (*)').eq('test_id', testId).eq('is_submitted', true).not('total_score', 'is', null).not('max_score', 'is', null).gt('max_score', 0).order('submitted_at', { ascending: false })
       if (ae) throw ae
       setAttempts(attData.map(a => ({ ...a, answers: a.student_answers || [] })))
+
+      if (testData?.org_id) {
+        const { data: addons } = await supabase
+          .from('org_capacity_addons').select('quantity, expires_at')
+          .eq('org_id', testData.org_id).eq('kind', 'extra_students').eq('status', 'active')
+        const now = Date.now()
+        const extra = (addons || [])
+          .filter(a => !a.expires_at || new Date(a.expires_at).getTime() > now)
+          .reduce((s, a) => s + a.quantity, 0)
+        setExtraStudentCapacity(extra)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load report data')
     } finally {
@@ -47,8 +61,26 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
     }
   }
 
+  // Capacity gates VIEWING results past the included limit, never
+  // submitting one — every student who takes the test is fully recorded
+  // regardless of plan. Metered-billing orgs pay for actual usage, so
+  // they're never capped here. First-submitted-first-unlocked.
+  const effectiveStudentLimit = org?.student_billing_mode === 'metered'
+    ? null
+    : plan?.max_students_per_test != null ? plan.max_students_per_test + extraStudentCapacity : null
+  const unlockedIds = effectiveStudentLimit == null
+    ? null
+    : new Set(
+        [...attempts]
+          .sort((a, b) => (a.submitted_at || '').localeCompare(b.submitted_at || ''))
+          .slice(0, effectiveStudentLimit)
+          .map(a => a.id)
+      )
+  const lockedCount = unlockedIds ? attempts.length - unlockedIds.size : 0
+  const isUnlocked = (id: string) => !unlockedIds || unlockedIds.has(id)
+
   const exportResults = () => {
-    const data = attempts.map(a => ({
+    const data = attempts.filter(a => isUnlocked(a.id)).map(a => ({
       'Student Name': a.student_name || 'N/A',
       'Email': a.student_email || 'N/A',
       'Score': a.total_score || 0,
@@ -228,6 +260,13 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
             <div className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
               <div className="p-6 border-b border-app">
                 <h3 className="text-base font-semibold text-ink">Individual Results</h3>
+                {lockedCount > 0 && (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    <Lock className="w-4 h-4 shrink-0" />
+                    <span>{lockedCount} result{lockedCount !== 1 ? 's' : ''} locked — you're over your plan's student limit for this test.</span>
+                    <span className="inline-flex items-center gap-1 font-medium ml-auto shrink-0"><Sparkles className="w-3.5 h-3.5" />Buy more capacity from Billing</span>
+                  </div>
+                )}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -242,6 +281,25 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
                     {attempts.map(a => {
                       const pct = a.max_score > 0 ? Math.round(((a.total_score || 0) / a.max_score) * 100) : 0
                       const { grade, cls } = getGrade(pct, test?.grading_config)
+                      const unlocked = isUnlocked(a.id)
+                      if (!unlocked) {
+                        return (
+                          <tr key={a.id} className="opacity-60">
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center shrink-0">
+                                  <Lock className="w-3.5 h-3.5 text-ink-muted" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-ink">{a.student_name || 'Anonymous'}</p>
+                                  <p className="text-xs text-ink-muted">Locked</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 text-ink-muted" colSpan={5}>Buy more student capacity to view this result</td>
+                          </tr>
+                        )
+                      }
                       return (
                         <tr key={a.id} className="hover:bg-app transition-colors">
                           <td className="px-5 py-4">

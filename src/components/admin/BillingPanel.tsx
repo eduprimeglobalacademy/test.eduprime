@@ -21,13 +21,13 @@ interface Invoice {
   issuedAt: string | null
 }
 
-type AddonKind = 'extra_teachers' | 'extra_active_tests'
+type AddonKind = 'extra_teachers' | 'extra_active_tests' | 'extra_students'
 
 interface CapacityAddon {
   id: string
   kind: AddonKind
   quantity: number
-  mode: 'recurring' | 'one_time'
+  mode: 'recurring' | 'one_time' | 'metered'
   status: string
   unit_price_inr: number
   expires_at: string | null
@@ -36,16 +36,18 @@ interface CapacityAddon {
 const ADDON_LABEL: Record<AddonKind, string> = {
   extra_teachers: 'Teacher seats',
   extra_active_tests: 'Active test slots',
+  extra_students: 'Students per test',
 }
 
 export function BillingPanel() {
   const { user } = useAuth()
-  const { org } = useTenant()
+  const { org, refetchOrg } = useTenant()
   const [plans, setPlans] = useState<Plan[]>([])
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [addons, setAddons] = useState<CapacityAddon[]>([])
-  const [addonQty, setAddonQty] = useState<Record<AddonKind, number>>({ extra_teachers: 1, extra_active_tests: 1 })
+  const [addonQty, setAddonQty] = useState<Record<AddonKind, number>>({ extra_teachers: 1, extra_active_tests: 1, extra_students: 10 })
+  const [togglingMetered, setTogglingMetered] = useState(false)
   const [purchasingAddon, setPurchasingAddon] = useState<AddonKind | null>(null)
   const [removingAddonId, setRemovingAddonId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -255,6 +257,27 @@ export function BillingPanel() {
     }
   }
 
+  const handleToggleMetered = async (enable: boolean) => {
+    setError('')
+    setTogglingMetered(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/razorpay-toggle-metered-billing`
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enable }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Could not update billing mode.')
+      await Promise.all([fetchData(), refetchOrg()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setTogglingMetered(false)
+    }
+  }
+
   if (loading) return <div className="py-16 flex justify-center"><LoadingSpinner size="lg" /></div>
 
   const canCancel = subscription && !['cancelled', 'completed'].includes(subscription.status)
@@ -330,14 +353,17 @@ export function BillingPanel() {
         })}
       </div>
 
-      {currentPlan && (currentPlan.addon_teacher_price_inr != null || currentPlan.addon_test_price_inr != null) && (
+      {currentPlan && (currentPlan.addon_teacher_price_inr != null || currentPlan.addon_test_price_inr != null || currentPlan.addon_student_price_inr != null) && (
         <Card>
           <h3 className="text-base font-semibold text-ink mb-1">Add capacity</h3>
           <p className="text-sm text-ink-faint mb-5">Need more than your plan includes? Buy extra seats or test slots without changing tiers.</p>
 
           <div className="space-y-5">
-            {(['extra_teachers', 'extra_active_tests'] as const).map((kind) => {
-              const unitPrice = kind === 'extra_teachers' ? currentPlan.addon_teacher_price_inr : currentPlan.addon_test_price_inr
+            {(['extra_teachers', 'extra_active_tests', 'extra_students'] as const).map((kind) => {
+              if (kind === 'extra_students' && org?.student_billing_mode === 'metered') return null
+              const unitPrice = kind === 'extra_teachers' ? currentPlan.addon_teacher_price_inr
+                : kind === 'extra_active_tests' ? currentPlan.addon_test_price_inr
+                : currentPlan.addon_student_price_inr
               if (unitPrice == null) return null
               const qty = addonQty[kind]
               return (
@@ -407,6 +433,28 @@ export function BillingPanel() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {currentPlan.addon_student_price_inr != null && (
+            <div className="mt-5 pt-5 border-t border-app">
+              {org?.student_billing_mode === 'metered' ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink">Flexible student billing is on</p>
+                    <p className="text-xs text-ink-faint mt-0.5">No per-test student cap — billed ₹{currentPlan.addon_student_price_inr}/student for actual usage each cycle.</p>
+                  </div>
+                  <Button variant="outline" size="sm" loading={togglingMetered} onClick={() => handleToggleMetered(false)}>Switch to fixed limit</Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink">Prefer to pay per student instead?</p>
+                    <p className="text-xs text-ink-faint mt-0.5">No upfront purchase or cap — ₹{currentPlan.addon_student_price_inr}/student, billed for actual usage each cycle.</p>
+                  </div>
+                  <Button variant="outline" size="sm" loading={togglingMetered} onClick={() => handleToggleMetered(true)} disabled={!hasSubscription}>Enable flexible billing</Button>
+                </div>
+              )}
             </div>
           )}
         </Card>
