@@ -127,7 +127,7 @@ export function TestResults({ results }: TestResultsProps) {
             <span className={`text-xl font-semibold ${gradeInfo.color}`}>{percentage}%</span>
           </div>
 
-          <div className="flex items-center justify-center gap-6 text-sm">
+          <div className="flex items-center justify-center flex-wrap gap-x-6 gap-y-2 text-sm">
             <div className="flex items-center gap-1.5 text-emerald-600">
               <CheckCircle className="w-4 h-4" />
               <span className="font-medium">{correct}</span>
@@ -162,7 +162,7 @@ export function TestResults({ results }: TestResultsProps) {
 
         {/* Student info */}
         <div className="bg-surface rounded-2xl border border-app shadow-sm p-5">
-          <div className="grid grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div><p className="text-xs text-ink-muted mb-1">Student</p><p className="font-medium text-ink">{studentName}</p></div>
             <div><p className="text-xs text-ink-muted mb-1">Email</p><p className="font-medium text-ink truncate">{studentEmail}</p></div>
             <div><p className="text-xs text-ink-muted mb-1">Submitted</p><p className="font-medium text-ink">{new Date(submittedAt).toLocaleString()}</p></div>
