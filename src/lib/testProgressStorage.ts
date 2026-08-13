@@ -1,3 +1,5 @@
+import type { StudentDetailField } from './studentDetailFields'
+
 // sessionStorage (not localStorage) is deliberate — a snapshot should
 // survive a refresh but clear on tab close, and never leak across
 // devices/sessions or need manual expiry.
@@ -8,6 +10,9 @@ export interface TestProgressSnapshot {
   studentPhone: string
   googleEmailLocked: boolean
   answers: Record<string, string | string[]>
+  // Public-exam-only extra fields (college/section/course/etc.) — empty
+  // object for every other test.
+  extraDetails: Partial<Record<StudentDetailField, string>>
   currentQuestion: number
   currentSectionIdx: number
   // Absolute epoch-ms deadlines, not remaining-seconds counters — a

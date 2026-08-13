@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { StudentDetailField } from './studentDetailFields'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -189,6 +190,7 @@ export interface Test {
   per_question_timing: boolean
   require_google_auth: boolean
   is_public_exam: boolean
+  student_detail_fields: StudentDetailField[]
   approved_by?: string
   approved_at?: string
   created_at: string
@@ -250,6 +252,13 @@ export interface TestAttempt {
   max_score: number
   time_taken_seconds?: number
   is_submitted: boolean
+  // Only populated for public exams that opted into collecting them —
+  // see tests.student_detail_fields / migration 20260813190000.
+  college_name?: string
+  section?: string
+  course?: string
+  year_of_study?: string
+  semester?: string
 }
 
 export interface StudentAnswer {

@@ -17,6 +17,8 @@ import { QuestionBankPicker } from './QuestionBankPicker'
 import { BehaviorFields } from './BehaviorFields'
 import { GradingFields } from './GradingFields'
 import { SectionsPanel } from './SectionsPanel'
+import { STUDENT_DETAIL_FIELDS, ALL_STUDENT_DETAIL_FIELD_KEYS } from '../../lib/studentDetailFields'
+import type { StudentDetailField } from '../../lib/studentDetailFields'
 import type { Test } from '../../lib/supabase'
 
 const CREATION_STEPS: { key: 'basic' | 'behavior' | 'grading'; label: string }[] = [
@@ -103,6 +105,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const [loading, setLoading] = useState(!!initialTestId)
   const [classId, setClassId] = useState(initialClassId || '')
   const [isPublicExam, setIsPublicExam] = useState(false)
+  const [studentDetailFields, setStudentDetailFields] = useState<StudentDetailField[]>(ALL_STUDENT_DETAIL_FIELD_KEYS)
   const [testStatus, setTestStatus] = useState<string | undefined>(undefined)
   const [settings, setSettings] = useState<SettingsForm>(EMPTY_SETTINGS)
   const [savingSettings, setSavingSettings] = useState(false)
@@ -126,6 +129,10 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const { sections, addSection, updateSection, removeSection, reorderSection } = useTestSections(testId)
 
   const update = (key: keyof SettingsForm, value: any) => setSettings(prev => ({ ...prev, [key]: value }))
+
+  const toggleStudentDetailField = (key: StudentDetailField) => {
+    setStudentDetailFields(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
 
   useEffect(() => {
     if (!initialTestId) return
@@ -151,6 +158,18 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
           passingGrade: test.grading_config?.passingGrade?.toString() || '60',
         })
         setClassId(test.class_id || '')
+        setIsPublicExam(test.is_public_exam)
+        // Pre-existing public exams from before this feature had no
+        // stored selection at all (column defaults to '{}') — default
+        // those to every field rather than showing "nothing collected."
+        // A test that explicitly had all fields unchecked also reads as
+        // an empty array; that's an acceptable, rare edge case, not worth
+        // a separate "was this ever set" column just to disambiguate.
+        setStudentDetailFields(
+          test.is_public_exam && (!test.student_detail_fields || test.student_detail_fields.length === 0)
+            ? ALL_STUDENT_DETAIL_FIELD_KEYS
+            : (test.student_detail_fields || [])
+        )
         setTestStatus(test.status)
       }
       setLoading(false)
@@ -177,6 +196,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const buildPayload = () => ({
     class_id: isPublicExam ? null : (classId || null),
     is_public_exam: isPublicExam,
+    student_detail_fields: isPublicExam ? studentDetailFields : [],
     title: settings.title,
     description: settings.description || null,
     duration_minutes: settings.durationMinutes ? parseInt(settings.durationMinutes) : null,
@@ -585,6 +605,24 @@ lines instead of "A./B." lines, one per acceptable answer.
                   <span className="block text-xs text-ink-faint mt-0.5">Open to an unknown number of outside participants. Requires your org admin's approval before it can go live.</span>
                 </span>
               </label>
+              {isPublicExam && (
+                <div className="p-3 rounded-xl border border-app bg-app">
+                  <p className="text-sm font-medium text-ink mb-0.5">Student details to collect</p>
+                  <p className="text-xs text-ink-faint mb-3">Every student already gives name, email and phone. Choose any extra fields this exam needs.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {STUDENT_DETAIL_FIELDS.map(({ key, label }) => (
+                      <label key={key} className="flex items-center gap-2 text-sm text-ink-soft cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={studentDetailFields.includes(key)}
+                          onChange={() => toggleStudentDetailField(key)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               {!isPublicExam && <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />}
               <Input
                 label="Assessment Title *"

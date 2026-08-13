@@ -7,6 +7,8 @@ import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { TestWatermark } from './TestWatermark'
 import { useFullscreenGuard } from '../../hooks/useFullscreenGuard'
 import { saveTestProgress, loadTestProgress, clearTestProgress } from '../../lib/testProgressStorage'
+import { STUDENT_DETAIL_FIELDS } from '../../lib/studentDetailFields'
+import type { StudentDetailField } from '../../lib/studentDetailFields'
 import type { Test, Question, QuestionOption, TestSection } from '../../lib/supabase'
 
 interface TestInterfaceProps {
@@ -55,6 +57,9 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   const [studentName, setStudentName] = useState('')
   const [studentEmail, setStudentEmail] = useState('')
   const [studentPhone, setStudentPhone] = useState('')
+  // Public-exam-only extra fields the teacher opted into collecting
+  // (test.student_detail_fields) — keyed by field, e.g. college_name.
+  const [extraDetails, setExtraDetails] = useState<Partial<Record<StudentDetailField, string>>>({})
   const [phase, setPhase] = useState<TestPhase>('details')
   const [duplicateError, setDuplicateError] = useState('')
   const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null)
@@ -179,10 +184,10 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   useEffect(() => {
     if (phase !== 'instructions' && phase !== 'test') return
     saveTestProgress(testCode, {
-      phase, studentName, studentEmail, studentPhone, googleEmailLocked, answers,
+      phase, studentName, studentEmail, studentPhone, googleEmailLocked, answers, extraDetails,
       currentQuestion, currentSectionIdx, wholeTestDeadline, questionDeadline, sectionDeadline,
     })
-  }, [phase, testCode, studentName, studentEmail, studentPhone, googleEmailLocked, answers, currentQuestion, currentSectionIdx, wholeTestDeadline, questionDeadline, sectionDeadline])
+  }, [phase, testCode, studentName, studentEmail, studentPhone, googleEmailLocked, answers, extraDetails, currentQuestion, currentSectionIdx, wholeTestDeadline, questionDeadline, sectionDeadline])
 
   // Native "leave site?" confirmation — a deterrent, not a guarantee (browsers
   // don't allow custom text or true prevention here either). The actual fix
@@ -241,6 +246,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
           setStudentPhone(restored.studentPhone)
           setGoogleEmailLocked(restored.googleEmailLocked)
           setAnswers(restored.answers)
+          setExtraDetails(restored.extraDetails ?? {})
           setCurrentQuestion(restored.currentQuestion)
           setCurrentSectionIdx(restored.currentSectionIdx)
           prevQuestionRef.current = restored.currentQuestion
@@ -323,6 +329,12 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
     if (!studentPhone.trim()) { setDetailsError('Please enter your phone number'); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) { setDetailsError('Please enter a valid email'); return }
     if (!/^[\d\s\-+()]{10,}$/.test(studentPhone.replace(/\s/g, ''))) { setDetailsError('Please enter a valid phone number'); return }
+    for (const field of test?.student_detail_fields ?? []) {
+      if (!extraDetails[field]?.trim()) {
+        setDetailsError(`Please enter your ${STUDENT_DETAIL_FIELDS.find(f => f.key === field)?.label.toLowerCase() ?? field}`)
+        return
+      }
+    }
     setDetailsError('')
     checkDuplicate()
   }
@@ -448,12 +460,14 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       // insert().select() chain fails RLS on the implicit RETURNING clause.
       // Knowing the id up front avoids needing to read it back at all.
       const attemptId = crypto.randomUUID()
+      const extraFieldRow = Object.fromEntries((test!.student_detail_fields ?? []).map(f => [f, extraDetails[f]?.trim() || null]))
       const { error: attemptError } = await supabase.from('test_attempts').insert([{
         id: attemptId,
         test_id: test!.id, student_name: studentName, student_email: studentEmail, phone_number: studentPhone,
         total_score: totalScore, max_score: maxScore,
         time_taken_seconds: test!.duration_minutes ? Math.max(0, test!.duration_minutes * 60 - (timeLeft || 0)) : null,
-        is_submitted: true, submitted_at: new Date().toISOString()
+        is_submitted: true, submitted_at: new Date().toISOString(),
+        ...extraFieldRow,
       }])
       if (attemptError) throw attemptError
       for (const q of questions) {
@@ -565,6 +579,22 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
               <label className="block text-sm font-medium text-ink-soft mb-1.5">Phone Number *</label>
               <input type="tel" value={studentPhone} onChange={e => setStudentPhone(e.target.value)} className="input-base" placeholder="Enter your phone number" />
             </div>
+            {(test?.student_detail_fields ?? []).map(field => {
+              const def = STUDENT_DETAIL_FIELDS.find(f => f.key === field)
+              if (!def) return null
+              return (
+                <div key={field}>
+                  <label className="block text-sm font-medium text-ink-soft mb-1.5">{def.label} *</label>
+                  <input
+                    type="text"
+                    value={extraDetails[field] || ''}
+                    onChange={e => setExtraDetails(prev => ({ ...prev, [field]: e.target.value }))}
+                    className="input-base"
+                    placeholder={def.placeholder}
+                  />
+                </div>
+              )
+            })}
             {(detailsError || duplicateError) && (
               <div className="p-3 rounded-xl" style={{ background: 'var(--tone-danger-bg)' }}>
                 <p className="text-sm" style={{ color: 'var(--tone-danger-ink)' }}>{detailsError || duplicateError}</p>
@@ -628,6 +658,11 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
               <div><span className="text-ink-muted text-xs">Name</span><p className="font-medium text-ink truncate">{studentName}</p></div>
               <div><span className="text-ink-muted text-xs">Email</span><p className="font-medium text-ink truncate">{studentEmail}</p></div>
               <div><span className="text-ink-muted text-xs">Phone</span><p className="font-medium text-ink truncate">{studentPhone}</p></div>
+              {(test?.student_detail_fields ?? []).map(field => {
+                const def = STUDENT_DETAIL_FIELDS.find(f => f.key === field)
+                if (!def) return null
+                return <div key={field}><span className="text-ink-muted text-xs">{def.label}</span><p className="font-medium text-ink truncate">{extraDetails[field]}</p></div>
+              })}
             </div>
             <button onClick={() => setPhase('details')} className="text-[var(--brand-primary)] text-xs hover:underline mt-2">Change details</button>
           </div>

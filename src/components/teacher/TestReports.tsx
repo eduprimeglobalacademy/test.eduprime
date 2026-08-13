@@ -7,6 +7,7 @@ import { usePlanLimits } from '../../hooks/usePlanLimits'
 import { useAddonCapacity } from '../../hooks/useAddonCapacity'
 import { useTenant } from '../../contexts/TenantContext'
 import { classLabel } from '../../hooks/useClasses'
+import { STUDENT_DETAIL_FIELDS } from '../../lib/studentDetailFields'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { UsageMeter } from '../ui/UsageMeter'
@@ -72,10 +73,13 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
   const lockedCount = unlockedIds ? attempts.length - unlockedIds.size : 0
   const isUnlocked = (id: string) => !unlockedIds || unlockedIds.has(id)
 
+  const collectedFields = STUDENT_DETAIL_FIELDS.filter(f => test?.student_detail_fields?.includes(f.key))
+
   const exportResults = () => {
     const data = attempts.filter(a => isUnlocked(a.id)).map(a => ({
       'Student Name': a.student_name || 'N/A',
       'Email': a.student_email || 'N/A',
+      ...Object.fromEntries(collectedFields.map(f => [f.label, a[f.key] || 'N/A'])),
       'Score': a.total_score || 0,
       'Max Score': a.max_score || 0,
       'Percentage': a.max_score > 0 ? Math.round(((a.total_score || 0) / a.max_score) * 100) : 0,
@@ -325,6 +329,11 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
                               <div>
                                 <p className="font-medium text-ink">{a.student_name || 'Anonymous'}</p>
                                 {a.student_email && <p className="text-xs text-ink-muted">{a.student_email}</p>}
+                                {collectedFields.length > 0 && (
+                                  <p className="text-xs text-ink-muted">
+                                    {collectedFields.map(f => a[f.key]).filter(Boolean).join(' · ')}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </td>
