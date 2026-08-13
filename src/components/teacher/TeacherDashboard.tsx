@@ -22,6 +22,7 @@ import { DashboardHome } from './DashboardHome'
 import { AnalyticsOverview } from './AnalyticsOverview'
 import { TeacherSettings } from './TeacherSettings'
 import { FocusList } from './FocusList'
+import { ErrorBoundary } from '../ErrorBoundary'
 import { useClasses } from '../../hooks/useClasses'
 import { useFocusItems } from '../../hooks/useFocusItems'
 import type { Test, Teacher } from '../../lib/supabase'
@@ -409,7 +410,9 @@ export function TeacherDashboard() {
             </>
           )}
 
-          {viewMode === 'analytics' && <AnalyticsOverview tests={tests} />}
+          {viewMode === 'analytics' && (
+            <ErrorBoundary label="Analytics"><AnalyticsOverview tests={tests} /></ErrorBoundary>
+          )}
 
           {viewMode === 'focus' && teacher && (
             <FocusList

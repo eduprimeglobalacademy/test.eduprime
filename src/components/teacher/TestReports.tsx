@@ -10,6 +10,7 @@ import { classLabel } from '../../hooks/useClasses'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { UsageMeter } from '../ui/UsageMeter'
+import { ErrorBoundary } from '../ErrorBoundary'
 import type { Test, TestAttempt, StudentAnswer } from '../../lib/supabase'
 
 interface TestReportsProps {
@@ -235,6 +236,7 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
 
             {/* Charts */}
             {(gradeDistribution.length > 0 || scoreDistribution.length > 0) && (
+              <ErrorBoundary label="Charts">
               <div className="grid lg:grid-cols-2 gap-6">
                 {gradeDistribution.length > 0 && (
                   <div className="bg-surface rounded-2xl border border-app shadow-sm p-6">
@@ -266,6 +268,7 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
                   </div>
                 )}
               </div>
+              </ErrorBoundary>
             )}
 
             {/* Table */}

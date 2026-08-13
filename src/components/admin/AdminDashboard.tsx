@@ -16,6 +16,7 @@ import { OrgStatusBanner } from '../billing/OrgStatusBanner'
 import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
 import { OnboardingFlow } from './OnboardingFlow'
 import { EducatorAnalytics } from './EducatorAnalytics'
+import { ErrorBoundary } from '../ErrorBoundary'
 import { PendingApprovals } from './PendingApprovals'
 
 interface TeacherToken {
@@ -362,7 +363,7 @@ export function AdminDashboard() {
             <h2 className="text-2xl sm:text-3xl font-bold text-ink">Educator Analytics</h2>
             <p className="text-ink-faint mt-1">What each educator is building and how students are doing</p>
           </div>
-          {org && <EducatorAnalytics orgId={org.id} />}
+          {org && <ErrorBoundary label="Analytics"><EducatorAnalytics orgId={org.id} /></ErrorBoundary>}
         </div>
       ) : viewMode === 'approvals' ? (
         <div>
