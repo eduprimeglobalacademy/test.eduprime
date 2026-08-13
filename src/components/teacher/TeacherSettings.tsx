@@ -3,7 +3,9 @@ import { User, Lock, Link2, Save, Check } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { PasswordInput } from '../ui/PasswordInput'
 import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
+import { validatePassword, PASSWORD_REQUIREMENTS } from '../../lib/password'
 import type { Teacher } from '../../lib/supabase'
 
 interface TeacherSettingsProps {
@@ -21,9 +23,14 @@ export function TeacherSettings({ teacher, email, onTeacherUpdated }: TeacherSet
 
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordTouched, setPasswordTouched] = useState(false)
+  const [confirmTouched, setConfirmTouched] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [passwordSaved, setPasswordSaved] = useState(false)
   const [passwordError, setPasswordError] = useState('')
+
+  const passwordFieldError = passwordTouched ? validatePassword(newPassword) : null
+  const confirmFieldError = confirmTouched && confirmPassword !== newPassword ? 'Passwords do not match' : null
 
   const saveProfile = async () => {
     if (!name.trim()) { setProfileError('Name is required'); return }
@@ -44,7 +51,10 @@ export function TeacherSettings({ teacher, email, onTeacherUpdated }: TeacherSet
 
   const savePassword = async () => {
     setPasswordError('')
-    if (newPassword.length < 6) { setPasswordError('Password must be at least 6 characters'); return }
+    setPasswordTouched(true)
+    setConfirmTouched(true)
+    const validationError = validatePassword(newPassword)
+    if (validationError) { setPasswordError(validationError); return }
     if (newPassword !== confirmPassword) { setPasswordError('Passwords do not match'); return }
     setSavingPassword(true)
     try {
@@ -52,6 +62,8 @@ export function TeacherSettings({ teacher, email, onTeacherUpdated }: TeacherSet
       if (error) throw error
       setNewPassword('')
       setConfirmPassword('')
+      setPasswordTouched(false)
+      setConfirmTouched(false)
       setPasswordSaved(true)
       setTimeout(() => setPasswordSaved(false), 2000)
     } catch (err) {
@@ -91,8 +103,22 @@ export function TeacherSettings({ teacher, email, onTeacherUpdated }: TeacherSet
               <Lock className="w-4 h-4 text-[var(--brand-primary)]" />Password
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
-              <Input label="New password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" />
-              <Input label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+              <PasswordInput
+                label="New password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                onBlur={() => setPasswordTouched(true)}
+                error={passwordFieldError || undefined}
+                helper={!passwordFieldError ? PASSWORD_REQUIREMENTS.join(' · ') : undefined}
+                placeholder="At least 8 characters"
+              />
+              <PasswordInput
+                label="Confirm password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                onBlur={() => setConfirmTouched(true)}
+                error={confirmFieldError || undefined}
+              />
             </div>
             {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
             <div className="flex items-center gap-3">

@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { X, Building2, User, Mail, Lock, Link2, ArrowRight, Palette, Image } from 'lucide-react'
+import { X, Building2, User, Mail, Lock, Link2, ArrowRight, Palette, Image, Eye, EyeOff } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { supabase } from '../../lib/supabase'
 import { buildSessionHandoffUrl } from '../../lib/auth'
 import { slugify, isValidSlug, isReservedSlug, orgUrl, ROOT_DOMAIN } from '../../lib/tenant'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { validatePassword, PASSWORD_REQUIREMENTS } from '../../lib/password'
 
 const DEFAULT_BRAND_COLOR = '#EA580C'
 
@@ -20,10 +21,14 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
   const [adminName, setAdminName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
+  const [passwordVisible, setPasswordVisible] = useState(false)
+  const [passwordTouched, setPasswordTouched] = useState(false)
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_BRAND_COLOR)
   const [logoUrl, setLogoUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const passwordFieldError = passwordTouched ? validatePassword(adminPassword) : null
 
   useEscapeKey(onClose, isOpen)
 
@@ -37,9 +42,15 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setPasswordTouched(true)
 
     if (!isValidSlug(slug) || isReservedSlug(slug)) {
       setError('Choose a subdomain using lowercase letters, numbers, and hyphens.')
+      return
+    }
+    const passwordValidationError = validatePassword(adminPassword)
+    if (passwordValidationError) {
+      setError(passwordValidationError)
       return
     }
 
@@ -164,15 +175,29 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4 pointer-events-none" />
               <input
-                type="password"
+                type={passwordVisible ? 'text' : 'password'}
                 placeholder="Password"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
-                className="input-base pl-10"
-                minLength={6}
+                onBlur={() => setPasswordTouched(true)}
+                className="input-base pl-10 pr-10"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setPasswordVisible(v => !v)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-soft transition-colors"
+                tabIndex={-1}
+                aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+              >
+                {passwordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+            {passwordFieldError ? (
+              <p className="text-xs text-red-600 -mt-2 ml-1">{passwordFieldError}</p>
+            ) : (
+              <p className="text-xs text-ink-faint -mt-2 ml-1">{PASSWORD_REQUIREMENTS.join(' · ')}</p>
+            )}
 
             <div className="border-t border-app pt-4">
               <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Brand it as your own</p>

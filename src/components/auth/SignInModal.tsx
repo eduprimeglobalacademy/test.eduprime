@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { X, Mail, Lock, LogIn } from 'lucide-react'
+import { X, Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react'
 import { signInWithEmail, signInWithGoogle } from '../../lib/auth'
 import { useAuth } from '../../contexts/AuthContext'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { Button } from '../ui/Button'
-import { Input } from '../ui/Input'
 
 interface SignInModalProps {
   isOpen: boolean
@@ -14,6 +13,7 @@ interface SignInModalProps {
 export function SignInModal({ isOpen, onClose }: SignInModalProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordVisible, setPasswordVisible] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
@@ -87,13 +87,22 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4 pointer-events-none" />
               <input
-                type="password"
+                type={passwordVisible ? 'text' : 'password'}
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input-base pl-10"
+                className="input-base pl-10 pr-10"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setPasswordVisible(v => !v)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-soft transition-colors"
+                tabIndex={-1}
+                aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+              >
+                {passwordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
 
             {error && (

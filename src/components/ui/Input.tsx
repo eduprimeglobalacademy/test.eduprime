@@ -5,9 +5,11 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement | HTMLTe
   as?: 'input' | 'textarea'
   rows?: number
   preserveWhitespace?: boolean
+  /** Rendered inside the field, right-aligned — e.g. a password visibility toggle. */
+  rightElement?: React.ReactNode
 }
 
-export function Input({ label, error, helper, className = '', as = 'input', rows, preserveWhitespace = false, ...props }: InputProps) {
+export function Input({ label, error, helper, className = '', as = 'input', rows, preserveWhitespace = false, rightElement, ...props }: InputProps) {
   const Component = as === 'textarea' ? 'textarea' : 'input'
 
   return (
@@ -17,18 +19,24 @@ export function Input({ label, error, helper, className = '', as = 'input', rows
           {label}
         </label>
       )}
-      <Component
-        className={`block w-full px-3.5 py-2.5 border rounded-lg bg-[var(--surface)] text-sm text-[var(--ink)]
-          placeholder-[var(--ink-muted)] shadow-sm transition-colors duration-150
-          focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)]
-          ${as === 'textarea' ? 'resize-vertical' : ''}
-          ${preserveWhitespace ? 'whitespace-pre-wrap' : ''}
-          ${error ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-[var(--border)]'}
-          ${className}`}
-        rows={as === 'textarea' ? rows : undefined}
-        style={preserveWhitespace ? { whiteSpace: 'pre-wrap' } : undefined}
-        {...props}
-      />
+      <div className="relative">
+        <Component
+          className={`block w-full px-3.5 py-2.5 border rounded-lg bg-[var(--surface)] text-sm text-[var(--ink)]
+            placeholder-[var(--ink-muted)] shadow-sm transition-colors duration-150
+            focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)]
+            ${as === 'textarea' ? 'resize-vertical' : ''}
+            ${preserveWhitespace ? 'whitespace-pre-wrap' : ''}
+            ${rightElement ? 'pr-10' : ''}
+            ${error ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-[var(--border)]'}
+            ${className}`}
+          rows={as === 'textarea' ? rows : undefined}
+          style={preserveWhitespace ? { whiteSpace: 'pre-wrap' } : undefined}
+          {...props}
+        />
+        {rightElement && (
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3">{rightElement}</div>
+        )}
+      </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       {helper && !error && <p className="text-xs text-[var(--ink-faint)]">{helper}</p>}
     </div>
