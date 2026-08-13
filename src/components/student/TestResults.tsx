@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle, Download, MinusCircle } from 'lucide-react'
+import { CheckCircle, XCircle, Download, MinusCircle, AlertCircle } from 'lucide-react'
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { Button } from '../ui/Button'
@@ -29,6 +29,7 @@ interface TestResultsProps {
       selectedAnswer?: string | string[]
       correctAnswer?: string
       isCorrect: boolean
+      pointsEarned: number
       options: Array<{ id: string; option_text: string; is_correct: boolean }>
     }>
   }
@@ -60,7 +61,8 @@ export function TestResults({ results }: TestResultsProps) {
 
   const gradeInfo = getGrade(percentage)
   const correct = questions.filter(q => hasAnswer(q) && q.isCorrect).length
-  const incorrect = questions.filter(q => hasAnswer(q) && !q.isCorrect).length
+  const partial = questions.filter(q => hasAnswer(q) && !q.isCorrect && q.pointsEarned > 0).length
+  const incorrect = questions.filter(q => hasAnswer(q) && !q.isCorrect && q.pointsEarned === 0).length
   const unanswered = questions.filter(q => !hasAnswer(q)).length
 
   const downloadPDF = () => {
@@ -131,6 +133,13 @@ export function TestResults({ results }: TestResultsProps) {
               <span className="font-medium">{correct}</span>
               <span className="text-ink-muted">correct</span>
             </div>
+            {partial > 0 && (
+              <div className="flex items-center gap-1.5 text-amber-600">
+                <AlertCircle className="w-4 h-4" />
+                <span className="font-medium">{partial}</span>
+                <span className="text-ink-muted">partial</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5 text-red-500">
               <XCircle className="w-4 h-4" />
               <span className="font-medium">{incorrect}</span>
@@ -167,15 +176,18 @@ export function TestResults({ results }: TestResultsProps) {
             {questions.map((question, index) => {
               const isCorrect = question.isCorrect
               const wasAnswered = hasAnswer(question)
+              const isPartial = wasAnswered && !isCorrect && question.pointsEarned > 0
               return (
                 <div key={question.id} className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
                   <div className={`px-6 py-4 flex items-start justify-between gap-4 border-b ${
                     !wasAnswered ? 'border-app bg-surface-2' :
-                    isCorrect ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50'
+                    isCorrect ? 'border-emerald-100 bg-emerald-50' :
+                    isPartial ? 'border-amber-100 bg-amber-50' : 'border-red-100 bg-red-50'
                   }`}>
                     <div className="flex items-start gap-3">
                       {!wasAnswered ? <MinusCircle className="w-5 h-5 text-ink-muted shrink-0 mt-0.5" /> :
                        isCorrect ? <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" /> :
+                       isPartial ? <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" /> :
                        <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
                       <div>
                         <span className="text-xs font-semibold text-ink-faint uppercase tracking-wide">Question {index + 1}</span>
@@ -183,9 +195,10 @@ export function TestResults({ results }: TestResultsProps) {
                       </div>
                     </div>
                     <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg ${
-                      isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-2 text-ink-soft'
+                      isCorrect ? 'bg-emerald-100 text-emerald-700' :
+                      isPartial ? 'bg-amber-100 text-amber-700' : 'bg-surface-2 text-ink-soft'
                     }`}>
-                      {isCorrect ? question.points : 0}/{question.points}
+                      {question.pointsEarned}/{question.points}
                     </span>
                   </div>
 

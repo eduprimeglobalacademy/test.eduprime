@@ -287,13 +287,27 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
     return typeof sel === 'string' && !!sel && q.options.find(o => o.id === sel)?.is_correct === true
   }
 
+  // Multi-select gets proportional partial credit — (correct picks - wrong picks) / total
+  // correct options, floored at 0, of the question's points, rounded to a whole point since
+  // student_answers.points_earned is an integer column. Every other type stays all-or-nothing.
+  const pointsEarnedFor = (q: TestQuestion, sel: string | string[] | undefined): number => {
+    if (q.question_type !== 'multi_select') return gradeAnswer(q, sel) ? q.points : 0
+    const selectedIds = Array.isArray(sel) ? sel : []
+    const correctIds = q.options.filter(o => o.is_correct).map(o => o.id)
+    if (selectedIds.length === 0 || correctIds.length === 0) return 0
+    const correctPicked = selectedIds.filter(id => correctIds.includes(id)).length
+    const wrongPicked = selectedIds.length - correctPicked
+    const fraction = Math.max(0, (correctPicked - wrongPicked) / correctIds.length)
+    return Math.round(q.points * fraction)
+  }
+
   const handleSubmit = async () => {
     setPhase('submitting')
     try {
       let totalScore = 0, maxScore = 0
       for (const q of questions) {
         maxScore += q.points
-        if (gradeAnswer(q, answers[q.id])) totalScore += q.points
+        totalScore += pointsEarnedFor(q, answers[q.id])
       }
       // Generated client-side rather than read back via .select() — there's
       // no anon SELECT policy on test_attempts (anon key holders must not
@@ -316,7 +330,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
         const isCorrect = gradeAnswer(q, sel)
         const row: Record<string, unknown> = {
           attempt_id: attemptId, question_id: q.id,
-          is_correct: isCorrect, points_earned: isCorrect ? q.points : 0,
+          is_correct: isCorrect, points_earned: pointsEarnedFor(q, sel),
         }
         if (q.question_type === 'multi_select') row.selected_option_ids = sel as string[]
         else if (q.question_type === 'short_answer') row.answer_text = sel as string
@@ -332,6 +346,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
           selectedAnswer: answers[q.id],
           correctAnswer: q.options.find(o => o.is_correct)?.id,
           isCorrect: gradeAnswer(q, answers[q.id]),
+          pointsEarned: pointsEarnedFor(q, answers[q.id]),
         }))
       })
     } catch (err) {
