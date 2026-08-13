@@ -5,7 +5,7 @@ import { useTenant } from '../../contexts/TenantContext'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { TestWatermark } from './TestWatermark'
-import type { Test, Question, QuestionOption } from '../../lib/supabase'
+import type { Test, Question, QuestionOption, TestSection } from '../../lib/supabase'
 
 interface TestInterfaceProps {
   testCode: string
@@ -17,6 +17,15 @@ interface TestQuestion extends Question {
   options: QuestionOption[]
 }
 
+interface EffectiveSection {
+  id: string | null
+  title: string
+  timing_mode: TestSection['timing_mode']
+  duration_minutes: number | null
+  allow_free_navigation: boolean
+  questionIndices: number[]
+}
+
 type TestPhase = 'auth-check' | 'blocked' | 'details' | 'instructions' | 'test' | 'submitting'
 
 export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProps) {
@@ -25,7 +34,10 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
   const [test, setTest] = useState<Test | null>(null)
   const [questions, setQuestions] = useState<TestQuestion[]>([])
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [sections, setSections] = useState<TestSection[]>([])
+  const [currentSectionIdx, setCurrentSectionIdx] = useState(0)
+  const [sectionTimeLeft, setSectionTimeLeft] = useState<number | null>(null)
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,6 +52,31 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   const [blockReason, setBlockReason] = useState<'not-enrolled' | 'test-blocked' | null>(null)
   const [authError, setAuthError] = useState('')
 
+  // hasSections is true only when at least one REAL section (from the DB)
+  // actually has a question assigned to it. This is the load-bearing
+  // backward-compat guardrail: a test with zero test_sections rows, or one
+  // whose sections exist in authoring but have no questions assigned yet,
+  // must render and behave identically to today's flat exam-taking flow —
+  // it must never synthesize a section just because every question's
+  // section_id happens to be null.
+  const namedSectionsWithQuestions = sections
+    .map(s => ({
+      id: s.id, title: s.title, timing_mode: s.timing_mode, duration_minutes: s.duration_minutes, allow_free_navigation: s.allow_free_navigation,
+      questionIndices: questions.map((_, i) => i).filter(i => questions[i].section_id === s.id),
+    }))
+    .filter(s => s.questionIndices.length > 0)
+  const hasSections = namedSectionsWithQuestions.length > 0
+  const effectiveSections: EffectiveSection[] = !hasSections ? [] : [
+    ...namedSectionsWithQuestions,
+    ...(questions.some(q => !q.section_id) ? [{
+      id: null, title: 'General', timing_mode: 'untimed' as const, duration_minutes: null, allow_free_navigation: true,
+      questionIndices: questions.map((_, i) => i).filter(i => !questions[i].section_id),
+    }] : []),
+  ]
+  const currentSection = hasSections ? effectiveSections[currentSectionIdx] : null
+  const sectionQuestionIndices = currentSection?.questionIndices || []
+  const localQuestionIdx = sectionQuestionIndices.indexOf(currentQuestion)
+
   useEffect(() => { fetchTest() }, [testCode])
 
   useEffect(() => {
@@ -50,6 +87,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   }, [timeLeft, phase])
 
   useEffect(() => {
+    if (hasSections) return
     if (questionTimeLeft !== null && questionTimeLeft > 0 && phase === 'test') {
       const t = setTimeout(() => setQuestionTimeLeft(questionTimeLeft - 1), 1000)
       return () => clearTimeout(t)
@@ -57,14 +95,43 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       if (currentQuestion < questions.length - 1) setCurrentQuestion(prev => prev + 1)
       else handleSubmit()
     }
-  }, [questionTimeLeft, questions.length, phase])
+  }, [questionTimeLeft, questions.length, phase, hasSections])
 
   useEffect(() => {
+    if (hasSections) return
     if (test?.per_question_timing && questions.length > 0 && phase === 'test') {
       const q = questions[currentQuestion]
       if (q?.time_limit_seconds) setQuestionTimeLeft(q.time_limit_seconds)
     }
-  }, [currentQuestion, test?.per_question_timing, questions, phase])
+  }, [currentQuestion, test?.per_question_timing, questions, phase, hasSections])
+
+  // Section-level timer — one countdown for the whole section, covering
+  // both 'fixed' (a flat duration) and 'per_question_summed' (the sum of
+  // its questions' individual time limits) modes.
+  useEffect(() => {
+    if (!hasSections || phase !== 'test') return
+    const sec = effectiveSections[currentSectionIdx]
+    if (!sec) return
+    if (sec.timing_mode === 'fixed' && sec.duration_minutes) {
+      setSectionTimeLeft(sec.duration_minutes * 60)
+    } else if (sec.timing_mode === 'per_question_summed') {
+      const total = sec.questionIndices.reduce((sum, i) => sum + (questions[i]?.time_limit_seconds || 0), 0)
+      setSectionTimeLeft(total > 0 ? total : null)
+    } else {
+      setSectionTimeLeft(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSectionIdx, phase, hasSections])
+
+  useEffect(() => {
+    if (!hasSections) return
+    if (sectionTimeLeft !== null && sectionTimeLeft > 0 && phase === 'test') {
+      const t = setTimeout(() => setSectionTimeLeft(sectionTimeLeft - 1), 1000)
+      return () => clearTimeout(t)
+    } else if (sectionTimeLeft === 0 && phase === 'test') {
+      advanceSection()
+    }
+  }, [sectionTimeLeft, phase, hasSections])
 
   const fetchTest = async () => {
     try {
@@ -77,9 +144,13 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       if (testData.start_time && new Date(testData.start_time) > now) { setError('Test has not started yet'); setLoading(false); return }
       if (testData.end_time && new Date(testData.end_time) < now) { setError('Test has ended'); setLoading(false); return }
       setTest(testData)
-      const { data: qData, error: qError } = await supabase.from('questions').select('*, question_options (*)').eq('test_id', testData.id).order('question_order')
+      const [{ data: qData, error: qError }, { data: secData }] = await Promise.all([
+        supabase.from('questions').select('*, question_options (*)').eq('test_id', testData.id).order('question_order'),
+        supabase.from('test_sections').select('*').eq('test_id', testData.id).order('section_order'),
+      ])
       if (qError) throw qError
       setQuestions(qData.map(q => ({ ...q, options: q.question_options.sort((a: any, b: any) => a.option_order - b.option_order) })))
+      setSections(secData || [])
       await resolveGate(testData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load test')
@@ -159,7 +230,14 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
 
   const handleStartTest = () => {
     setPhase('test')
-    if (test?.per_question_timing && questions.length > 0 && questions[0]?.time_limit_seconds) {
+    if (hasSections) {
+      setCurrentSectionIdx(0)
+      setCurrentQuestion(effectiveSections[0]?.questionIndices[0] ?? 0)
+      // The outer test-level duration (if set) still bounds the whole
+      // attempt regardless of per-section timing — a hard ceiling on top
+      // of whichever section timers run underneath it.
+      setTimeLeft(test?.duration_minutes ? test.duration_minutes * 60 : null)
+    } else if (test?.per_question_timing && questions.length > 0 && questions[0]?.time_limit_seconds) {
       setQuestionTimeLeft(questions[0].time_limit_seconds)
       setTimeLeft(null)
     } else if (test?.duration_minutes) {
@@ -168,14 +246,36 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
     }
   }
 
+  const advanceSection = () => {
+    const nextIdx = currentSectionIdx + 1
+    if (nextIdx < effectiveSections.length) {
+      setCurrentSectionIdx(nextIdx)
+      setCurrentQuestion(effectiveSections[nextIdx].questionIndices[0] ?? currentQuestion)
+    } else {
+      handleSubmit()
+    }
+  }
+
+  const gradeAnswer = (q: TestQuestion, sel: string | string[] | undefined): boolean => {
+    if (q.question_type === 'multi_select') {
+      const selectedIds = Array.isArray(sel) ? sel : []
+      const correctIds = q.options.filter(o => o.is_correct).map(o => o.id)
+      return selectedIds.length > 0 && selectedIds.length === correctIds.length && correctIds.every(id => selectedIds.includes(id))
+    }
+    if (q.question_type === 'short_answer') {
+      const text = typeof sel === 'string' ? sel.trim().toLowerCase() : ''
+      return !!text && q.options.some(o => o.option_text.trim().toLowerCase() === text)
+    }
+    return typeof sel === 'string' && !!sel && q.options.find(o => o.id === sel)?.is_correct === true
+  }
+
   const handleSubmit = async () => {
     setPhase('submitting')
     try {
       let totalScore = 0, maxScore = 0
       for (const q of questions) {
         maxScore += q.points
-        const sel = answers[q.id]
-        if (sel && q.options.find(o => o.id === sel)?.is_correct) totalScore += q.points
+        if (gradeAnswer(q, answers[q.id])) totalScore += q.points
       }
       // Generated client-side rather than read back via .select() — there's
       // no anon SELECT policy on test_attempts (anon key holders must not
@@ -193,19 +293,28 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       if (attemptError) throw attemptError
       for (const q of questions) {
         const sel = answers[q.id]
-        if (sel) {
-          const opt = q.options.find(o => o.id === sel)
-          await supabase.from('student_answers').insert([{
-            attempt_id: attemptId, question_id: q.id, selected_option_id: sel,
-            is_correct: opt?.is_correct || false, points_earned: opt?.is_correct ? q.points : 0
-          }])
+        const hasAnswer = Array.isArray(sel) ? sel.length > 0 : typeof sel === 'string' && sel.trim().length > 0
+        if (!hasAnswer) continue
+        const isCorrect = gradeAnswer(q, sel)
+        const row: Record<string, unknown> = {
+          attempt_id: attemptId, question_id: q.id,
+          is_correct: isCorrect, points_earned: isCorrect ? q.points : 0,
         }
+        if (q.question_type === 'multi_select') row.selected_option_ids = sel as string[]
+        else if (q.question_type === 'short_answer') row.answer_text = sel as string
+        else row.selected_option_id = sel as string
+        await supabase.from('student_answers').insert([row])
       }
       onComplete({
         score: totalScore, maxScore, showResults: test!.show_results, testTitle: test!.title,
         studentName, studentEmail, submittedAt: new Date().toISOString(),
         gradingConfig: test!.grading_config,
-        questions: questions.map(q => ({ ...q, selectedAnswer: answers[q.id], correctAnswer: q.options.find(o => o.is_correct)?.id }))
+        questions: questions.map(q => ({
+          ...q,
+          selectedAnswer: answers[q.id],
+          correctAnswer: q.options.find(o => o.is_correct)?.id,
+          isCorrect: gradeAnswer(q, answers[q.id]),
+        }))
       })
     } catch (err) {
       console.error('Submit error:', err)
@@ -313,7 +422,9 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
             {[
               { label: 'Questions', value: questions.length },
               { label: 'Total Points', value: questions.reduce((s, q) => s + q.points, 0) },
-              { label: 'Time Limit', value: test?.per_question_timing && questions[0]?.time_limit_seconds ? `${questions[0].time_limit_seconds}s/Q` : test?.duration_minutes ? `${test.duration_minutes}m` : 'None' },
+              { label: 'Time Limit', value: hasSections
+                  ? `${effectiveSections.length} section${effectiveSections.length !== 1 ? 's' : ''}`
+                  : test?.per_question_timing && questions[0]?.time_limit_seconds ? `${questions[0].time_limit_seconds}s/Q` : test?.duration_minutes ? `${test.duration_minutes}m` : 'None' },
             ].map(({ label, value }) => (
               <div key={label} className="text-center">
                 <div className="text-2xl font-bold text-[var(--brand-primary-dark)]">{value}</div>
@@ -325,9 +436,13 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
           <div className="space-y-3 mb-6">
             {[
               'Read each question carefully before selecting your answer.',
-              test?.per_question_timing ? 'Questions auto-advance when time expires. You cannot go back.' : test?.allow_navigation_back ? 'You can navigate between questions freely.' : 'You can only move forward — no going back.',
+              hasSections
+                ? 'This assessment is organized into sections, each with its own timing and navigation rules.'
+                : test?.per_question_timing ? 'Questions auto-advance when time expires. You cannot go back.' : test?.allow_navigation_back ? 'You can navigate between questions freely.' : 'You can only move forward — no going back.',
               'Your progress is automatically saved as you answer.',
-              test?.per_question_timing && questions[0]?.time_limit_seconds
+              hasSections
+                ? 'Some sections may be timed and may not allow moving to other sections once left.'
+                : test?.per_question_timing && questions[0]?.time_limit_seconds
                 ? `Each question has ${questions[0].time_limit_seconds} seconds.`
                 : test?.duration_minutes ? `You have ${test.duration_minutes} minutes. Test auto-submits when time runs out.`
                 : 'Click "Submit" when finished with all questions.',
@@ -368,9 +483,14 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
     </div>
   )
 
+  const isAnswered = (q: TestQuestion) => {
+    const sel = answers[q.id]
+    return Array.isArray(sel) ? sel.length > 0 : typeof sel === 'string' && sel.trim().length > 0
+  }
+
   const currentQ = questions[currentQuestion]
   const progress = ((currentQuestion + 1) / questions.length) * 100
-  const answered = Object.keys(answers).length
+  const answered = questions.filter(isAnswered).length
 
   return (
     <div className="theme-dark min-h-screen bg-app">
@@ -388,7 +508,34 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {test?.per_question_timing && questionTimeLeft !== null ? (
+              {hasSections ? (
+                <>
+                  {sectionTimeLeft !== null && (
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-mono font-semibold"
+                      title={`${currentSection?.title} time remaining`}
+                      style={sectionTimeLeft < 10
+                        ? { background: 'var(--tone-danger-bg)', color: 'var(--tone-danger-ink)' }
+                        : { background: 'var(--tone-warning-bg)', color: 'var(--tone-warning-ink)' }}
+                    >
+                      <Clock className="w-4 h-4" />
+                      {fmt(sectionTimeLeft)}
+                    </div>
+                  )}
+                  {timeLeft !== null && (
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-mono font-semibold"
+                      title="Overall time remaining"
+                      style={timeLeft < 60
+                        ? { background: 'var(--tone-danger-bg)', color: 'var(--tone-danger-ink)' }
+                        : { background: 'var(--brand-primary-soft)', color: 'var(--brand-primary-dark)' }}
+                    >
+                      <Clock className="w-4 h-4" />
+                      {fmt(timeLeft)}
+                    </div>
+                  )}
+                </>
+              ) : test?.per_question_timing && questionTimeLeft !== null ? (
                 <div
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-mono font-semibold"
                   style={questionTimeLeft < 10
@@ -428,28 +575,70 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Question nav (desktop) */}
           <div className="hidden lg:block">
-            <div className="bg-surface rounded-2xl border border-app shadow-sm p-4 sticky top-24">
-              <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Questions</p>
-              <div className="grid grid-cols-4 gap-1.5">
-                {questions.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      if (test?.per_question_timing) return
-                      if (test?.allow_navigation_back || i > currentQuestion) setCurrentQuestion(i)
-                    }}
-                    className={`w-full aspect-square rounded-lg text-xs font-semibold transition-colors ${
-                      i === currentQuestion ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' :
-                      answers[questions[i].id] ? '' :
-                      'bg-surface-2 text-ink-faint hover:bg-surface-2'
-                    }`}
-                    style={answers[questions[i].id] && i !== currentQuestion ? { background: 'var(--tone-success-bg)', color: 'var(--tone-success-ink)' } : undefined}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-4 pt-4 border-t border-app">
+            <div className="bg-surface rounded-2xl border border-app shadow-sm p-4 sticky top-24 space-y-4">
+              {hasSections ? (
+                effectiveSections.map((sec, secIdx) => {
+                  const isCurrentSection = secIdx === currentSectionIdx
+                  const canJumpHere = isCurrentSection || (currentSection?.allow_free_navigation && secIdx !== currentSectionIdx)
+                  return (
+                    <div key={sec.id ?? 'general'}>
+                      <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isCurrentSection ? 'text-[var(--brand-primary)]' : 'text-ink-faint'}`}>
+                        {sec.title}{!canJumpHere ? ' (locked)' : ''}
+                      </p>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {sec.questionIndices.map(i => (
+                          <button
+                            key={i}
+                            disabled={!canJumpHere}
+                            onClick={() => {
+                              if (!canJumpHere) return
+                              if (isCurrentSection) {
+                                const targetLocalIdx = sec.questionIndices.indexOf(i)
+                                if (test?.allow_navigation_back || targetLocalIdx > localQuestionIdx) setCurrentQuestion(i)
+                              } else {
+                                setCurrentSectionIdx(secIdx)
+                                setCurrentQuestion(i)
+                              }
+                            }}
+                            className={`w-full aspect-square rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                              i === currentQuestion ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' :
+                              isAnswered(questions[i]) ? '' :
+                              'bg-surface-2 text-ink-faint hover:bg-surface-2'
+                            }`}
+                            style={isAnswered(questions[i]) && i !== currentQuestion ? { background: 'var(--tone-success-bg)', color: 'var(--tone-success-ink)' } : undefined}
+                          >
+                            {i + 1}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div>
+                  <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Questions</p>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {questions.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          if (test?.per_question_timing) return
+                          if (test?.allow_navigation_back || i > currentQuestion) setCurrentQuestion(i)
+                        }}
+                        className={`w-full aspect-square rounded-lg text-xs font-semibold transition-colors ${
+                          i === currentQuestion ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' :
+                          isAnswered(questions[i]) ? '' :
+                          'bg-surface-2 text-ink-faint hover:bg-surface-2'
+                        }`}
+                        style={isAnswered(questions[i]) && i !== currentQuestion ? { background: 'var(--tone-success-bg)', color: 'var(--tone-success-ink)' } : undefined}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="pt-4 border-t border-app">
                 <div className="flex items-center justify-between text-xs text-ink-faint">
                   <span>Answered</span>
                   <span className="font-semibold text-ink">{answered}/{questions.length}</span>
@@ -466,7 +655,11 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
             <div className="bg-surface rounded-2xl border border-app shadow-sm p-6 sm:p-8">
               <div className="flex items-start justify-between gap-4 mb-6">
                 <div>
-                  <span className="text-xs font-semibold text-[var(--brand-primary)] uppercase tracking-wide">Question {currentQuestion + 1} of {questions.length}</span>
+                  <span className="text-xs font-semibold text-[var(--brand-primary)] uppercase tracking-wide">
+                    {hasSections && currentSection
+                      ? `${currentSection.title} · Question ${localQuestionIdx + 1} of ${sectionQuestionIndices.length}`
+                      : `Question ${currentQuestion + 1} of ${questions.length}`}
+                  </span>
                   <h2 className="text-lg sm:text-xl font-semibold text-ink mt-2 leading-relaxed">{currentQ.question_text}</h2>
                 </div>
                 <span className="shrink-0 px-2.5 py-1 bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] text-xs font-semibold rounded-lg border border-[var(--brand-primary-soft)]">
@@ -474,43 +667,76 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
                 </span>
               </div>
 
-              <div className="space-y-3">
-                {currentQ.options.map((option, i) => {
-                  const letters = ['A', 'B', 'C', 'D', 'E']
-                  const isSelected = answers[currentQ.id] === option.id
-                  return (
-                    <label
-                      key={option.id}
-                      className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-150 ${
-                        isSelected
-                          ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
-                          : 'border-app hover:border-[var(--brand-primary)] hover:bg-app'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name={`q-${currentQ.id}`}
-                        value={option.id}
-                        checked={isSelected}
-                        onChange={() => setAnswers(prev => ({ ...prev, [currentQ.id]: option.id }))}
-                        className="sr-only"
-                      />
-                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${
-                        isSelected ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' : 'bg-surface-2 text-ink-faint'
-                      }`}>{letters[i] || i + 1}</span>
-                      <span className={`text-sm sm:text-base leading-relaxed ${isSelected ? 'text-[var(--brand-primary-darker)] font-medium' : 'text-ink-soft'}`}>
-                        {option.option_text}
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
+              {currentQ.question_type === 'short_answer' ? (
+                <textarea
+                  value={typeof answers[currentQ.id] === 'string' ? (answers[currentQ.id] as string) : ''}
+                  onChange={(e) => setAnswers(prev => ({ ...prev, [currentQ.id]: e.target.value }))}
+                  placeholder="Type your answer"
+                  className="input-base resize-y min-h-[100px] w-full"
+                  rows={3}
+                />
+              ) : (
+                <div className="space-y-3">
+                  {currentQ.options.map((option, i) => {
+                    const letters = ['A', 'B', 'C', 'D', 'E']
+                    const isMultiSelect = currentQ.question_type === 'multi_select'
+                    const selected = answers[currentQ.id]
+                    const isSelected = isMultiSelect
+                      ? Array.isArray(selected) && selected.includes(option.id)
+                      : selected === option.id
+                    const toggle = () => {
+                      if (isMultiSelect) {
+                        setAnswers(prev => {
+                          const current = Array.isArray(prev[currentQ.id]) ? (prev[currentQ.id] as string[]) : []
+                          const next = current.includes(option.id) ? current.filter(id => id !== option.id) : [...current, option.id]
+                          return { ...prev, [currentQ.id]: next }
+                        })
+                      } else {
+                        setAnswers(prev => ({ ...prev, [currentQ.id]: option.id }))
+                      }
+                    }
+                    return (
+                      <label
+                        key={option.id}
+                        className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-150 ${
+                          isSelected
+                            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
+                            : 'border-app hover:border-[var(--brand-primary)] hover:bg-app'
+                        }`}
+                      >
+                        <input
+                          type={isMultiSelect ? 'checkbox' : 'radio'}
+                          name={isMultiSelect ? undefined : `q-${currentQ.id}`}
+                          value={option.id}
+                          checked={isSelected}
+                          onChange={toggle}
+                          className="sr-only"
+                        />
+                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${
+                          isSelected ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]' : 'bg-surface-2 text-ink-faint'
+                        }`}>{letters[i] || i + 1}</span>
+                        <span className={`text-sm sm:text-base leading-relaxed ${isSelected ? 'text-[var(--brand-primary-darker)] font-medium' : 'text-ink-soft'}`}>
+                          {option.option_text}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
 
               <div className="flex items-center justify-between mt-8 pt-6 border-t border-app">
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
-                  disabled={currentQuestion === 0 || !!test?.per_question_timing || !test?.allow_navigation_back}
+                  onClick={() => {
+                    if (hasSections) {
+                      if (localQuestionIdx > 0) setCurrentQuestion(sectionQuestionIndices[localQuestionIdx - 1])
+                    } else {
+                      setCurrentQuestion(Math.max(0, currentQuestion - 1))
+                    }
+                  }}
+                  disabled={hasSections
+                    ? (localQuestionIdx <= 0 || !test?.allow_navigation_back)
+                    : (currentQuestion === 0 || !!test?.per_question_timing || !test?.allow_navigation_back)}
                 >
                   <ChevronLeft className="w-4 h-4" />Prev
                 </Button>
@@ -524,14 +750,28 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
                         key={qi}
                         className={`w-2 h-2 rounded-full transition-colors ${
                           qi === currentQuestion ? 'bg-[var(--brand-primary)]' :
-                          answers[questions[qi]?.id] ? 'bg-emerald-400' : 'bg-surface-2'
+                          questions[qi] && isAnswered(questions[qi]) ? 'bg-emerald-400' : 'bg-surface-2'
                         }`}
                       />
                     )
                   })}
                 </div>
 
-                {currentQuestion < questions.length - 1 ? (
+                {hasSections ? (
+                  localQuestionIdx < sectionQuestionIndices.length - 1 ? (
+                    <Button onClick={() => setCurrentQuestion(sectionQuestionIndices[localQuestionIdx + 1])}>
+                      Next<ChevronRight className="w-4 h-4" />
+                    </Button>
+                  ) : currentSectionIdx < effectiveSections.length - 1 ? (
+                    <Button onClick={advanceSection}>
+                      Next Section<ChevronRight className="w-4 h-4" />
+                    </Button>
+                  ) : (
+                    <Button onClick={handleSubmit} disabled={answered === 0}>
+                      <CheckCircle className="w-4 h-4" />Submit Assessment
+                    </Button>
+                  )
+                ) : currentQuestion < questions.length - 1 ? (
                   <Button onClick={() => setCurrentQuestion(currentQuestion + 1)}>
                     Next<ChevronRight className="w-4 h-4" />
                   </Button>

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import {
   ArrowLeft, ArrowRight, Save, Plus, Trash2, Upload, Download,
   AlertCircle, GripVertical, BookMarked, Library, FileText, Settings as SettingsIcon, Eye, BarChart3,
+  ChevronUp, ChevronDown,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useTenant } from '../../contexts/TenantContext'
 import { usePlanLimits } from '../../hooks/usePlanLimits'
 import { useQuestionBank } from '../../hooks/useQuestionBank'
+import { useTestSections } from '../../hooks/useTestSections'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
@@ -14,6 +16,7 @@ import { ClassPicker } from './ClassPicker'
 import { QuestionBankPicker } from './QuestionBankPicker'
 import { BehaviorFields } from './BehaviorFields'
 import { GradingFields } from './GradingFields'
+import { SectionsPanel } from './SectionsPanel'
 import type { Test } from '../../lib/supabase'
 
 const CREATION_STEPS: { key: 'basic' | 'behavior' | 'grading'; label: string }[] = [
@@ -40,14 +43,25 @@ interface QuestionOption {
   option_order: number
 }
 
+type QuestionType = 'single_select' | 'multi_select' | 'true_false' | 'short_answer'
+
 interface QuestionRow {
   id: string
   question_text: string
   question_order: number
   points: number
   time_limit_seconds: number | null
+  question_type: QuestionType
+  section_id: string | null
   options: QuestionOption[]
   isNew?: boolean
+}
+
+const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
+  single_select: 'Single Select',
+  multi_select: 'Multi Select',
+  true_false: 'True / False',
+  short_answer: 'Short Answer',
 }
 
 interface SettingsForm {
@@ -109,6 +123,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const [creationStep, setCreationStep] = useState(0)
   const canAdvanceStep = () => CREATION_STEPS[creationStep].key !== 'basic' || settings.title.trim().length > 0
   const { items: bankItems, saveToBank, deleteFromBank } = useQuestionBank(teacherId)
+  const { sections, addSection, updateSection, removeSection, reorderSection } = useTestSections(testId)
 
   const update = (key: keyof SettingsForm, value: any) => setSettings(prev => ({ ...prev, [key]: value }))
 
@@ -244,6 +259,8 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
       question_order: questions.length + 1,
       points: 1,
       time_limit_seconds: null,
+      question_type: 'single_select',
+      section_id: null,
       isNew: true,
       options: [
         { id: `opt-${Date.now()}-0`, option_text: '', is_correct: true, option_order: 1 },
@@ -261,11 +278,24 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
     setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q))
   }
 
+  const moveQuestion = (id: string, direction: 'up' | 'down') => {
+    setQuestions(prev => {
+      const idx = prev.findIndex(q => q.id === id)
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+      if (idx < 0 || swapIdx < 0 || swapIdx >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
+      return next.map((q, i) => ({ ...q, question_order: i + 1 }))
+    })
+  }
+
+  const minOptionsFor = (type: QuestionType) => type === 'short_answer' ? 1 : 2
+
   const updateOption = (qId: string, optId: string, field: string, value: any) => {
     setQuestions(prev => prev.map(q => {
       if (q.id !== qId) return q
       const opts = q.options.map(o => {
-        if (field === 'is_correct' && value === true) return { ...o, is_correct: o.id === optId }
+        if (field === 'is_correct' && value === true && q.question_type !== 'multi_select') return { ...o, is_correct: o.id === optId }
         if (o.id === optId) return { ...o, [field]: value }
         return o
       })
@@ -276,17 +306,41 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const addOption = (qId: string) => {
     setQuestions(prev => prev.map(q => {
       if (q.id !== qId) return q
-      const newOpt: QuestionOption = { id: `opt-${Date.now()}`, option_text: '', is_correct: false, option_order: q.options.length + 1 }
+      const newOpt: QuestionOption = { id: `opt-${Date.now()}`, option_text: '', is_correct: q.question_type === 'short_answer', option_order: q.options.length + 1 }
       return { ...q, options: [...q.options, newOpt] }
     }))
   }
 
   const removeOption = (qId: string, optId: string) => {
     setQuestions(prev => prev.map(q => {
-      if (q.id !== qId || q.options.length <= 2) return q
+      if (q.id !== qId || q.options.length <= minOptionsFor(q.question_type)) return q
       const filtered = q.options.filter(o => o.id !== optId)
-      if (filtered.every(o => !o.is_correct) && filtered.length > 0) filtered[0].is_correct = true
+      if (q.question_type !== 'short_answer' && filtered.every(o => !o.is_correct) && filtered.length > 0) filtered[0].is_correct = true
       return { ...q, options: filtered.map((o, i) => ({ ...o, option_order: i + 1 })) }
+    }))
+  }
+
+  const changeQuestionType = (qId: string, newType: QuestionType) => {
+    setQuestions(prev => prev.map(q => {
+      if (q.id !== qId) return q
+      let options = q.options
+      if (newType === 'true_false') {
+        options = [
+          { id: `opt-${Date.now()}-0`, option_text: 'True', is_correct: true, option_order: 1 },
+          { id: `opt-${Date.now()}-1`, option_text: 'False', is_correct: false, option_order: 2 },
+        ]
+      } else if (newType === 'short_answer') {
+        options = q.options.filter(o => o.option_text.trim()).map((o, i) => ({ ...o, is_correct: true, option_order: i + 1 }))
+        if (options.length === 0) options = [{ id: `opt-${Date.now()}`, option_text: '', is_correct: true, option_order: 1 }]
+      } else if (q.question_type === 'true_false' || q.question_type === 'short_answer') {
+        options = [
+          { id: `opt-${Date.now()}-0`, option_text: '', is_correct: true, option_order: 1 },
+          { id: `opt-${Date.now()}-1`, option_text: '', is_correct: false, option_order: 2 },
+          { id: `opt-${Date.now()}-2`, option_text: '', is_correct: false, option_order: 3 },
+          { id: `opt-${Date.now()}-3`, option_text: '', is_correct: false, option_order: 4 },
+        ]
+      }
+      return { ...q, question_type: newType, options }
     }))
   }
 
@@ -310,7 +364,13 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
       if (/^(\d+)[.)]\s+/.test(trimmed)) {
         if (currentQ) newQuestions.push(currentQ)
         const qText = trimmed.replace(/^(\d+)[.)]\s+/, '')
-        currentQ = { id: `new-${Date.now()}-${newQuestions.length}`, question_text: qText, question_order: questions.length + newQuestions.length + 1, points: 1, time_limit_seconds: null, isNew: true, options: [] }
+        currentQ = { id: `new-${Date.now()}-${newQuestions.length}`, question_text: qText, question_order: questions.length + newQuestions.length + 1, points: 1, time_limit_seconds: null, question_type: 'single_select', section_id: null, isNew: true, options: [] }
+      } else if (/^Type:\s*/i.test(trimmed) && currentQ) {
+        const t = trimmed.replace(/^Type:\s*/i, '').trim().toLowerCase().replace(/[^a-z_]/g, '')
+        if ((['single_select', 'multi_select', 'true_false', 'short_answer'] as string[]).includes(t)) currentQ.question_type = t as QuestionType
+      } else if (/^=\s*/.test(trimmed) && currentQ) {
+        const ansText = trimmed.replace(/^=\s*/, '').trim()
+        currentQ.options.push({ id: `opt-${Date.now()}-${currentQ.options.length}`, option_text: ansText, is_correct: true, option_order: currentQ.options.length + 1 })
       } else if (/^[A-E][.)]\s+/.test(trimmed) && currentQ) {
         const isCorrect = trimmed.includes('*') || trimmed.startsWith('A.')
         const optText = trimmed.replace(/^[A-E][.)]\s+/, '').replace('*', '').trim()
@@ -340,6 +400,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
         teacherId,
         questionText: question.question_text,
         points: question.points,
+        questionType: question.question_type,
         options: question.options.map((o, i) => ({ option_text: o.option_text, is_correct: o.is_correct, option_order: i + 1 })),
       })
       setSuccess('Saved to question bank')
@@ -359,6 +420,8 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
       question_order: questions.length + i + 1,
       points: b.points,
       time_limit_seconds: null,
+      question_type: b.question_type || 'single_select',
+      section_id: null,
       isNew: true,
       options: (b.options || []).map((o, oi) => ({ id: `opt-${Date.now()}-${i}-${oi}`, option_text: o.option_text, is_correct: o.is_correct, option_order: oi + 1 })),
     }))
@@ -376,12 +439,26 @@ C. 5
 D. 6
 
 2. Which planet is closest to the Sun?
+Type: multi_select
 A. Mercury*
 B. Venus
 C. Earth
 D. Mars
 
-Note: Mark correct answers with * or put correct answer first (A.)
+3. The Earth is flat.
+Type: true_false
+A. True
+B. False*
+
+4. What is the capital of France?
+Type: short_answer
+= Paris
+= paris
+
+Note: Mark correct answers with * or put correct answer first (A.). Optional
+"Type:" line sets the question type (single_select, multi_select, true_false,
+short_answer) — omit it for single_select. short_answer questions use "="
+lines instead of "A./B." lines, one per acceptable answer.
 `
     const blob = new Blob([tmpl], { type: 'text/plain' })
     const a = document.createElement('a')
@@ -396,15 +473,19 @@ Note: Mark correct answers with * or put correct answer first (A.)
     setSuccess('')
     for (const q of questions) {
       if (!q.question_text.trim()) { setError('All questions must have text'); return }
-      if (q.options.length < 2) { setError('Each question needs at least 2 options'); return }
+      const minOpts = minOptionsFor(q.question_type)
+      if (q.options.length < minOpts) {
+        setError(q.question_type === 'short_answer' ? 'Each short-answer question needs at least 1 acceptable answer' : 'Each question needs at least 2 options')
+        return
+      }
       if (q.options.some(o => !o.option_text.trim())) { setError('All options must have text'); return }
-      if (!q.options.some(o => o.is_correct)) { setError('Each question must have one correct answer'); return }
+      if (!q.options.some(o => o.is_correct)) { setError('Each question must have at least one correct answer'); return }
     }
     setSaving(true)
     try {
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i]
-        const qData = { test_id: testId, question_text: q.question_text, question_order: i + 1, points: q.points, time_limit_seconds: q.time_limit_seconds }
+        const qData = { test_id: testId, question_text: q.question_text, question_order: i + 1, points: q.points, time_limit_seconds: q.time_limit_seconds, question_type: q.question_type, section_id: q.section_id }
         let qId = q.id
         if (q.isNew) {
           const { data, error } = await supabase.from('questions').insert([qData]).select().single()
@@ -668,6 +749,14 @@ Note: Mark correct answers with * or put correct answer first (A.)
             <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
           ) : (
             <>
+              <SectionsPanel
+                sections={sections}
+                onAdd={addSection}
+                onUpdate={updateSection}
+                onDelete={removeSection}
+                onReorder={reorderSection}
+              />
+
               <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                 <div className="text-sm font-semibold text-ink-soft">Questions ({questions.length})</div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -717,26 +806,47 @@ Note: Mark correct answers with * or put correct answer first (A.)
               <div className="space-y-4">
                 {questions.map((question, qi) => {
                   const isExpanded = expandedQuestion === question.id
+                  const questionSection = sections.find(s => s.id === question.section_id)
                   return (
                     <div key={question.id} id={`q-${question.id}`} className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
-                      <button
-                        onClick={() => setExpandedQuestion(isExpanded ? null : question.id)}
-                        className="w-full flex items-center gap-4 px-5 sm:px-6 py-4 hover:bg-surface-2 transition-colors text-left"
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <GripVertical className="w-4 h-4 text-ink-muted shrink-0" />
-                          <div className="w-7 h-7 rounded-lg bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] flex items-center justify-center text-xs font-bold shrink-0">
-                            {qi + 1}
+                      <div className="w-full flex items-center gap-2 px-5 sm:px-6 py-4 hover:bg-surface-2 transition-colors">
+                        <div className="flex flex-col gap-0 shrink-0">
+                          <button type="button" disabled={qi === 0} onClick={(e) => { e.stopPropagation(); moveQuestion(question.id, 'up') }} className="p-0.5 text-ink-muted hover:text-ink-soft disabled:opacity-30 disabled:cursor-not-allowed">
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button type="button" disabled={qi === questions.length - 1} onClick={(e) => { e.stopPropagation(); moveQuestion(question.id, 'down') }} className="p-0.5 text-ink-muted hover:text-ink-soft disabled:opacity-30 disabled:cursor-not-allowed">
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => setExpandedQuestion(isExpanded ? null : question.id)}
+                          className="flex-1 flex items-center gap-4 min-w-0 text-left"
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <GripVertical className="w-4 h-4 text-ink-muted shrink-0" />
+                            <div className="w-7 h-7 rounded-lg bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] flex items-center justify-center text-xs font-bold shrink-0">
+                              {qi + 1}
+                            </div>
+                            <p className={`text-sm font-medium truncate ${question.question_text ? 'text-ink' : 'text-ink-muted italic'}`}>
+                              {question.question_text || 'New Question'}
+                            </p>
                           </div>
-                          <p className={`text-sm font-medium truncate ${question.question_text ? 'text-ink' : 'text-ink-muted italic'}`}>
-                            {question.question_text || 'New Question'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-ink-faint hidden sm:block">{question.points} pt{question.points !== 1 ? 's' : ''}</span>
-                          <span className={`text-xs transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
-                        </div>
-                      </button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {questionSection && (
+                              <span className="badge bg-surface-2 text-ink-soft text-xs hidden sm:inline-flex">
+                                {questionSection.title}
+                              </span>
+                            )}
+                            {question.question_type !== 'single_select' && (
+                              <span className="badge bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] text-xs hidden sm:inline-flex">
+                                {QUESTION_TYPE_LABEL[question.question_type]}
+                              </span>
+                            )}
+                            <span className="text-xs text-ink-faint hidden sm:block">{question.points} pt{question.points !== 1 ? 's' : ''}</span>
+                            <span className={`text-xs transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                          </div>
+                        </button>
+                      </div>
 
                       {isExpanded && (
                         <div className="border-t border-app px-5 sm:px-6 py-6 space-y-5">
@@ -770,50 +880,96 @@ Note: Mark correct answers with * or put correct answer first (A.)
                             </div>
                           </div>
 
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-ink-soft mb-1.5">Question Type</label>
+                              <select
+                                value={question.question_type}
+                                onChange={(e) => changeQuestionType(question.id, e.target.value as QuestionType)}
+                                className="input-base w-full"
+                              >
+                                {(Object.keys(QUESTION_TYPE_LABEL) as QuestionType[]).map(t => (
+                                  <option key={t} value={t}>{QUESTION_TYPE_LABEL[t]}</option>
+                                ))}
+                              </select>
+                            </div>
+                            {sections.length > 0 && (
+                              <div>
+                                <label className="block text-sm font-medium text-ink-soft mb-1.5">Section</label>
+                                <select
+                                  value={question.section_id || ''}
+                                  onChange={(e) => updateQuestion(question.id, 'section_id', e.target.value || null)}
+                                  className="input-base w-full"
+                                >
+                                  <option value="">No section</option>
+                                  {sections.map(s => (
+                                    <option key={s.id} value={s.id}>{s.title}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+
                           <div>
-                            <p className="text-sm font-medium text-ink-soft mb-3">Answer Options *</p>
+                            <p className="text-sm font-medium text-ink-soft mb-3">
+                              {question.question_type === 'short_answer' ? 'Acceptable Answers *' : 'Answer Options *'}
+                            </p>
                             <div className="space-y-2.5">
-                              {question.options.map((opt, oi) => (
-                                <div key={opt.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-colors ${opt.is_correct ? 'border-emerald-300 bg-emerald-50' : 'border-app'}`}>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold ${opt.is_correct ? 'bg-emerald-500 text-white' : 'bg-surface-2 text-ink-faint'}`}>
-                                      {letters[oi]}
-                                    </span>
-                                    <input
-                                      type="radio"
-                                      name={`correct-${question.id}`}
-                                      checked={opt.is_correct}
-                                      onChange={() => updateOption(question.id, opt.id, 'is_correct', true)}
-                                      className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
-                                      title="Mark as correct"
-                                    />
-                                  </div>
+                              {question.options.map((opt, oi) => {
+                                const isShortAnswer = question.question_type === 'short_answer'
+                                const isTrueFalse = question.question_type === 'true_false'
+                                const isMultiSelect = question.question_type === 'multi_select'
+                                return (
+                                <div key={opt.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-colors ${opt.is_correct && !isShortAnswer ? 'border-emerald-300 bg-emerald-50' : 'border-app'}`}>
+                                  {!isShortAnswer && (
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold ${opt.is_correct ? 'bg-emerald-500 text-white' : 'bg-surface-2 text-ink-faint'}`}>
+                                        {letters[oi]}
+                                      </span>
+                                      <input
+                                        type={isMultiSelect ? 'checkbox' : 'radio'}
+                                        name={isMultiSelect ? undefined : `correct-${question.id}`}
+                                        checked={opt.is_correct}
+                                        disabled={isTrueFalse}
+                                        onChange={() => updateOption(question.id, opt.id, 'is_correct', isMultiSelect ? !opt.is_correct : true)}
+                                        className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                                        title="Mark as correct"
+                                      />
+                                    </div>
+                                  )}
                                   <input
                                     type="text"
                                     value={opt.option_text}
                                     onChange={(e) => updateOption(question.id, opt.id, 'option_text', e.target.value)}
-                                    placeholder={`Option ${letters[oi]}`}
-                                    className="flex-1 text-sm border-0 bg-transparent focus:outline-none text-ink placeholder-[var(--ink-muted)]"
+                                    placeholder={isShortAnswer ? `Acceptable answer ${oi + 1}` : `Option ${letters[oi]}`}
+                                    readOnly={isTrueFalse}
+                                    className={`flex-1 text-sm border-0 bg-transparent focus:outline-none text-ink placeholder-[var(--ink-muted)] ${isTrueFalse ? 'opacity-70' : ''}`}
                                   />
-                                  {question.options.length > 2 && (
+                                  {!isTrueFalse && question.options.length > minOptionsFor(question.question_type) && (
                                     <button onClick={() => removeOption(question.id, opt.id)} className="p-1 text-ink-muted hover:text-red-500 transition-colors shrink-0">
                                       <Trash2 className="w-4 h-4" />
                                     </button>
                                   )}
                                 </div>
-                              ))}
+                              )})}
                             </div>
 
-                            <div className="flex items-center justify-between mt-3">
-                              <button
-                                onClick={() => addOption(question.id)}
-                                disabled={question.options.length >= 6}
-                                className="text-sm text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
-                              >
-                                <Plus className="w-4 h-4" />Add Option
-                              </button>
-                              <p className="text-xs text-ink-muted">Select radio button to mark correct answer</p>
-                            </div>
+                            {question.question_type !== 'true_false' && (
+                              <div className="flex items-center justify-between mt-3">
+                                <button
+                                  onClick={() => addOption(question.id)}
+                                  disabled={question.options.length >= 6}
+                                  className="text-sm text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  <Plus className="w-4 h-4" />{question.question_type === 'short_answer' ? 'Add Acceptable Answer' : 'Add Option'}
+                                </button>
+                                <p className="text-xs text-ink-muted">
+                                  {question.question_type === 'multi_select' ? 'Check all correct answers' :
+                                   question.question_type === 'short_answer' ? "Matches if the student's answer equals any of these (case-insensitive)" :
+                                   'Select radio button to mark correct answer'}
+                                </p>
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex justify-end gap-2 pt-2 border-t border-app">

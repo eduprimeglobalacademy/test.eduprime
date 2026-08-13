@@ -154,6 +154,7 @@ export interface QuestionBankItem {
   teacher_id: string
   question_text: string
   points: number
+  question_type: QuestionType
   created_at: string
   options?: QuestionBankOption[]
 }
@@ -201,6 +202,21 @@ export interface Test {
   }
 }
 
+export type QuestionType = 'single_select' | 'multi_select' | 'true_false' | 'short_answer'
+
+export type SectionTimingMode = 'untimed' | 'fixed' | 'per_question_summed'
+
+export interface TestSection {
+  id: string
+  test_id: string
+  title: string
+  section_order: number
+  timing_mode: SectionTimingMode
+  duration_minutes: number | null
+  allow_free_navigation: boolean
+  created_at: string
+}
+
 export interface Question {
   id: string
   test_id: string
@@ -208,6 +224,8 @@ export interface Question {
   question_order: number
   points: number
   time_limit_seconds?: number
+  question_type: QuestionType
+  section_id?: string | null
   options?: QuestionOption[]
 }
 
@@ -239,6 +257,8 @@ export interface StudentAnswer {
   attempt_id: string
   question_id: string
   selected_option_id?: string
+  selected_option_ids?: string[]
+  answer_text?: string
   is_correct: boolean
   points_earned: number
 }

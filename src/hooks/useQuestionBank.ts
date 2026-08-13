@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import type { QuestionBankItem, QuestionBankOption } from '../lib/supabase'
+import type { QuestionBankItem, QuestionBankOption, QuestionType } from '../lib/supabase'
 
 interface SaveToBankInput {
   teacherId: string
   questionText: string
   points: number
+  questionType: QuestionType
   options: { option_text: string; is_correct: boolean; option_order: number }[]
 }
 
@@ -29,10 +30,10 @@ export function useQuestionBank(teacherId: string | undefined) {
 
   useEffect(() => { fetchItems() }, [fetchItems])
 
-  const saveToBank = async ({ teacherId, questionText, points, options }: SaveToBankInput) => {
+  const saveToBank = async ({ teacherId, questionText, points, questionType, options }: SaveToBankInput) => {
     const { data: item, error } = await supabase
       .from('question_bank_items')
-      .insert([{ teacher_id: teacherId, question_text: questionText, points }])
+      .insert([{ teacher_id: teacherId, question_text: questionText, points, question_type: questionType }])
       .select().single()
     if (error) throw error
 

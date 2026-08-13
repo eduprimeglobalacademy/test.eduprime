@@ -25,8 +25,10 @@ interface TestResultsProps {
       id: string
       question_text: string
       points: number
-      selectedAnswer?: string
+      question_type: 'single_select' | 'multi_select' | 'true_false' | 'short_answer'
+      selectedAnswer?: string | string[]
       correctAnswer?: string
+      isCorrect: boolean
       options: Array<{ id: string; option_text: string; is_correct: boolean }>
     }>
   }
@@ -53,10 +55,13 @@ export function TestResults({ results }: TestResultsProps) {
     return { grade: 'F', color: 'text-red-700', bg: 'bg-red-100', ring: 'ring-red-300' }
   }
 
+  const hasAnswer = (q: TestResultsProps['results']['questions'][number]) =>
+    Array.isArray(q.selectedAnswer) ? q.selectedAnswer.length > 0 : !!q.selectedAnswer?.trim()
+
   const gradeInfo = getGrade(percentage)
-  const correct = questions.filter(q => q.selectedAnswer === q.correctAnswer).length
-  const incorrect = questions.filter(q => q.selectedAnswer && q.selectedAnswer !== q.correctAnswer).length
-  const unanswered = questions.filter(q => !q.selectedAnswer).length
+  const correct = questions.filter(q => hasAnswer(q) && q.isCorrect).length
+  const incorrect = questions.filter(q => hasAnswer(q) && !q.isCorrect).length
+  const unanswered = questions.filter(q => !hasAnswer(q)).length
 
   const downloadPDF = () => {
     const doc = new jsPDF()
@@ -160,8 +165,8 @@ export function TestResults({ results }: TestResultsProps) {
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-ink">Question Review</h2>
             {questions.map((question, index) => {
-              const isCorrect = question.selectedAnswer === question.correctAnswer
-              const wasAnswered = !!question.selectedAnswer
+              const isCorrect = question.isCorrect
+              const wasAnswered = hasAnswer(question)
               return (
                 <div key={question.id} className="bg-surface rounded-2xl border border-app shadow-sm overflow-hidden">
                   <div className={`px-6 py-4 flex items-start justify-between gap-4 border-b ${
@@ -184,32 +189,56 @@ export function TestResults({ results }: TestResultsProps) {
                     </span>
                   </div>
 
-                  <div className="p-5 space-y-2">
-                    {question.options.map(option => {
-                      const isSelected = option.id === question.selectedAnswer
-                      const isCorrectOpt = option.is_correct
-                      return (
-                        <div key={option.id} className={`flex items-center gap-3 p-3 rounded-xl border ${
-                          isCorrectOpt ? 'border-emerald-300 bg-emerald-50' :
-                          isSelected && !isCorrectOpt ? 'border-red-300 bg-red-50' :
-                          'border-app'
+                  {question.question_type === 'short_answer' ? (
+                    <div className="p-5 space-y-3">
+                      <div>
+                        <p className="text-xs text-ink-muted mb-1">Your answer</p>
+                        <p className={`text-sm p-3 rounded-xl border ${
+                          !wasAnswered ? 'border-app text-ink-muted italic' :
+                          isCorrect ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-red-300 bg-red-50 text-red-800'
                         }`}>
-                          <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                            isSelected ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]' : 'border-app-strong'
-                          }`}>
-                            {isSelected && <div className="w-2 h-2 bg-surface rounded-full" />}
-                          </div>
-                          <span className={`text-sm flex-1 ${isCorrectOpt ? 'text-emerald-800 font-medium' : isSelected ? 'text-red-800' : 'text-ink-soft'}`}>
-                            {option.option_text}
-                          </span>
-                          <div className="flex gap-1.5">
-                            {isSelected && <span className="badge bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] text-xs">Your answer</span>}
-                            {isCorrectOpt && <span className="badge bg-emerald-100 text-emerald-700 text-xs">Correct</span>}
-                          </div>
+                          {wasAnswered ? (question.selectedAnswer as string) : 'No answer'}
+                        </p>
+                      </div>
+                      {!isCorrect && (
+                        <div>
+                          <p className="text-xs text-ink-muted mb-1">Acceptable answers</p>
+                          <p className="text-sm p-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800">
+                            {question.options.map(o => o.option_text).join(', ')}
+                          </p>
                         </div>
-                      )
-                    })}
-                  </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-5 space-y-2">
+                      {question.options.map(option => {
+                        const isSelected = question.question_type === 'multi_select'
+                          ? Array.isArray(question.selectedAnswer) && question.selectedAnswer.includes(option.id)
+                          : option.id === question.selectedAnswer
+                        const isCorrectOpt = option.is_correct
+                        return (
+                          <div key={option.id} className={`flex items-center gap-3 p-3 rounded-xl border ${
+                            isCorrectOpt ? 'border-emerald-300 bg-emerald-50' :
+                            isSelected && !isCorrectOpt ? 'border-red-300 bg-red-50' :
+                            'border-app'
+                          }`}>
+                            <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                              isSelected ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]' : 'border-app-strong'
+                            }`}>
+                              {isSelected && <div className="w-2 h-2 bg-surface rounded-full" />}
+                            </div>
+                            <span className={`text-sm flex-1 ${isCorrectOpt ? 'text-emerald-800 font-medium' : isSelected ? 'text-red-800' : 'text-ink-soft'}`}>
+                              {option.option_text}
+                            </span>
+                            <div className="flex gap-1.5">
+                              {isSelected && <span className="badge bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] text-xs">Your answer</span>}
+                              {isCorrectOpt && <span className="badge bg-emerald-100 text-emerald-700 text-xs">Correct</span>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
