@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
-import { Clock, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, ShieldCheck, UserX } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Clock, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, ShieldCheck, UserX, Maximize } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useTenant } from '../../contexts/TenantContext'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { TestWatermark } from './TestWatermark'
+import { useFullscreenGuard } from '../../hooks/useFullscreenGuard'
+import { saveTestProgress, loadTestProgress, clearTestProgress } from '../../lib/testProgressStorage'
 import type { Test, Question, QuestionOption, TestSection } from '../../lib/supabase'
 
 interface TestInterfaceProps {
@@ -59,6 +61,19 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   const [googleEmailLocked, setGoogleEmailLocked] = useState(false)
   const [blockReason, setBlockReason] = useState<'not-enrolled' | 'test-blocked' | null>(null)
   const [authError, setAuthError] = useState('')
+  // Absolute epoch-ms deadlines backing timeLeft/questionTimeLeft/sectionTimeLeft —
+  // ticks recompute "remaining" from these each second instead of decrementing a
+  // counter, so a refresh (which restores the deadline, not the counter) can't be
+  // used to reset a student's own clock.
+  const [wholeTestDeadline, setWholeTestDeadline] = useState<number | null>(null)
+  const [questionDeadline, setQuestionDeadline] = useState<number | null>(null)
+  const [sectionDeadline, setSectionDeadline] = useState<number | null>(null)
+  // Tracks the last question/section index a deadline was actually issued for,
+  // so the per-question/per-section init effects only reset the clock on real
+  // navigation — not merely because `phase` flipped to 'test' (e.g. on restore).
+  const prevQuestionRef = useRef<number | null>(null)
+  const prevSectionRef = useRef<number | null>(null)
+  const { isFullscreen, requestFullscreen, exitFullscreen } = useFullscreenGuard()
 
   // hasSections is true only when at least one REAL section (from the DB)
   // actually has a question assigned to it. This is the load-bearing
@@ -89,27 +104,39 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
 
   useEffect(() => {
     if (timeLeft !== null && timeLeft > 0 && phase === 'test') {
-      const t = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
+      const t = setTimeout(() => {
+        setTimeLeft(wholeTestDeadline !== null ? Math.max(0, Math.round((wholeTestDeadline - Date.now()) / 1000)) : 0)
+      }, 1000)
       return () => clearTimeout(t)
     } else if (timeLeft === 0 && phase === 'test') handleSubmit()
-  }, [timeLeft, phase])
+  }, [timeLeft, phase, wholeTestDeadline])
 
   useEffect(() => {
     if (hasSections) return
     if (questionTimeLeft !== null && questionTimeLeft > 0 && phase === 'test') {
-      const t = setTimeout(() => setQuestionTimeLeft(questionTimeLeft - 1), 1000)
+      const t = setTimeout(() => {
+        setQuestionTimeLeft(questionDeadline !== null ? Math.max(0, Math.round((questionDeadline - Date.now()) / 1000)) : 0)
+      }, 1000)
       return () => clearTimeout(t)
     } else if (questionTimeLeft === 0 && phase === 'test') {
       if (currentQuestion < questions.length - 1) setCurrentQuestion(prev => prev + 1)
       else handleSubmit()
     }
-  }, [questionTimeLeft, questions.length, phase, hasSections])
+  }, [questionTimeLeft, questions.length, phase, hasSections, questionDeadline])
 
+  // Only resets the per-question clock on real navigation (currentQuestion
+  // actually changing from what a deadline was last issued for) — not just
+  // because `phase` became 'test', which also happens on a restored session
+  // where the deadline should carry over instead of resetting to full time.
   useEffect(() => {
     if (hasSections) return
-    if (test?.per_question_timing && questions.length > 0 && phase === 'test') {
-      const q = questions[currentQuestion]
-      if (q?.time_limit_seconds) setQuestionTimeLeft(q.time_limit_seconds)
+    if (!(test?.per_question_timing && questions.length > 0 && phase === 'test')) return
+    if (prevQuestionRef.current === currentQuestion) return
+    prevQuestionRef.current = currentQuestion
+    const q = questions[currentQuestion]
+    if (q?.time_limit_seconds) {
+      setQuestionDeadline(Date.now() + q.time_limit_seconds * 1000)
+      setQuestionTimeLeft(q.time_limit_seconds)
     }
   }, [currentQuestion, test?.per_question_timing, questions, phase, hasSections])
 
@@ -118,14 +145,19 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   // its questions' individual time limits) modes.
   useEffect(() => {
     if (!hasSections || phase !== 'test') return
+    if (prevSectionRef.current === currentSectionIdx) return
+    prevSectionRef.current = currentSectionIdx
     const sec = effectiveSections[currentSectionIdx]
     if (!sec) return
     if (sec.timing_mode === 'fixed' && sec.duration_minutes) {
+      setSectionDeadline(Date.now() + sec.duration_minutes * 60 * 1000)
       setSectionTimeLeft(sec.duration_minutes * 60)
     } else if (sec.timing_mode === 'per_question_summed') {
       const total = sec.questionIndices.reduce((sum, i) => sum + (questions[i]?.time_limit_seconds || 0), 0)
+      setSectionDeadline(total > 0 ? Date.now() + total * 1000 : null)
       setSectionTimeLeft(total > 0 ? total : null)
     } else {
+      setSectionDeadline(null)
       setSectionTimeLeft(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,12 +166,35 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   useEffect(() => {
     if (!hasSections) return
     if (sectionTimeLeft !== null && sectionTimeLeft > 0 && phase === 'test') {
-      const t = setTimeout(() => setSectionTimeLeft(sectionTimeLeft - 1), 1000)
+      const t = setTimeout(() => {
+        setSectionTimeLeft(sectionDeadline !== null ? Math.max(0, Math.round((sectionDeadline - Date.now()) / 1000)) : 0)
+      }, 1000)
       return () => clearTimeout(t)
     } else if (sectionTimeLeft === 0 && phase === 'test') {
       advanceSection()
     }
-  }, [sectionTimeLeft, phase, hasSections])
+  }, [sectionTimeLeft, phase, hasSections, sectionDeadline])
+
+  // Snapshot enough state to survive a refresh — restored in fetchTest.
+  useEffect(() => {
+    if (phase !== 'instructions' && phase !== 'test') return
+    saveTestProgress(testCode, {
+      phase, studentName, studentEmail, studentPhone, googleEmailLocked, answers,
+      currentQuestion, currentSectionIdx, wholeTestDeadline, questionDeadline, sectionDeadline,
+    })
+  }, [phase, testCode, studentName, studentEmail, studentPhone, googleEmailLocked, answers, currentQuestion, currentSectionIdx, wholeTestDeadline, questionDeadline, sectionDeadline])
+
+  // Native "leave site?" confirmation — a deterrent, not a guarantee (browsers
+  // don't allow custom text or true prevention here either). The actual fix
+  // for progress loss on refresh is the sessionStorage snapshot above.
+  useEffect(() => {
+    if (phase !== 'instructions' && phase !== 'test') return
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [phase])
+
+  useEffect(() => () => { exitFullscreen() }, [exitFullscreen])
 
   const fetchTest = async () => {
     try {
@@ -159,6 +214,45 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       if (qError) throw qError
       setQuestions(qData.map(q => ({ ...q, options: q.question_options.sort((a: { option_order: number }, b: { option_order: number }) => a.option_order - b.option_order) })))
       setSections(secData || [])
+
+      const restored = loadTestProgress(testCode)
+      if (restored && (restored.phase === 'instructions' || restored.phase === 'test' || restored.phase === 'submitting')) {
+        const { data: alreadyAttempted } = await supabase.rpc('has_attempted', {
+          p_test_id: testData.id,
+          p_student_email: restored.studentEmail,
+          p_phone_number: restored.studentPhone,
+        })
+        if (!alreadyAttempted) {
+          setStudentName(restored.studentName)
+          setStudentEmail(restored.studentEmail)
+          setStudentPhone(restored.studentPhone)
+          setGoogleEmailLocked(restored.googleEmailLocked)
+          setAnswers(restored.answers)
+          setCurrentQuestion(restored.currentQuestion)
+          setCurrentSectionIdx(restored.currentSectionIdx)
+          prevQuestionRef.current = restored.currentQuestion
+          prevSectionRef.current = restored.currentSectionIdx
+          if (restored.wholeTestDeadline !== null) {
+            setWholeTestDeadline(restored.wholeTestDeadline)
+            setTimeLeft(Math.max(0, Math.round((restored.wholeTestDeadline - Date.now()) / 1000)))
+          }
+          if (restored.questionDeadline !== null) {
+            setQuestionDeadline(restored.questionDeadline)
+            setQuestionTimeLeft(Math.max(0, Math.round((restored.questionDeadline - Date.now()) / 1000)))
+          }
+          if (restored.sectionDeadline !== null) {
+            setSectionDeadline(restored.sectionDeadline)
+            setSectionTimeLeft(Math.max(0, Math.round((restored.sectionDeadline - Date.now()) / 1000)))
+          }
+          // A mid-flight submit failure isn't transactional today regardless
+          // of this feature — drop the student back into the test to retry.
+          setPhase(restored.phase === 'submitting' ? 'test' : restored.phase)
+          setLoading(false)
+          return
+        }
+        clearTestProgress(testCode)
+      }
+
       await resolveGate(testData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load test')
@@ -245,7 +339,11 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
         p_student_email: studentEmail.trim(),
         p_phone_number: studentPhone.trim(),
       })
-      if (alreadyAttempted) { setDuplicateError('You have already taken this test. Each student can only take a test once.'); return }
+      if (alreadyAttempted) {
+        clearTestProgress(testCode)
+        setDuplicateError('You have already taken this test. Each student can only take a test once.')
+        return
+      }
       setDuplicateError('')
       setPhase('instructions')
     } catch {
@@ -255,6 +353,9 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   }
 
   const handleStartTest = () => {
+    // Still inside the "Start Assessment" click handler, so this satisfies
+    // the browser's user-gesture requirement for the Fullscreen API.
+    requestFullscreen()
     setPhase('test')
     if (hasSections) {
       setCurrentSectionIdx(0)
@@ -262,11 +363,22 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       // The outer test-level duration (if set) still bounds the whole
       // attempt regardless of per-section timing — a hard ceiling on top
       // of whichever section timers run underneath it.
-      setTimeLeft(test?.duration_minutes ? test.duration_minutes * 60 : null)
+      if (test?.duration_minutes) {
+        setWholeTestDeadline(Date.now() + test.duration_minutes * 60 * 1000)
+        setTimeLeft(test.duration_minutes * 60)
+      } else {
+        setWholeTestDeadline(null)
+        setTimeLeft(null)
+      }
     } else if (test?.per_question_timing && questions.length > 0 && questions[0]?.time_limit_seconds) {
+      // The per-question deadline itself is issued by the guarded
+      // navigation effect above once `phase` flips to 'test' — it treats
+      // this as the first real "navigation" since prevQuestionRef starts null.
       setQuestionTimeLeft(questions[0].time_limit_seconds)
       setTimeLeft(null)
+      setWholeTestDeadline(null)
     } else if (test?.duration_minutes) {
+      setWholeTestDeadline(Date.now() + test.duration_minutes * 60 * 1000)
       setTimeLeft(test.duration_minutes * 60)
       setQuestionTimeLeft(null)
     }
@@ -345,6 +457,8 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
         else row.selected_option_id = sel as string
         await supabase.from('student_answers').insert([row])
       }
+      clearTestProgress(testCode)
+      exitFullscreen()
       onComplete({
         score: totalScore, maxScore, showResults: test!.show_results, testTitle: test!.title,
         studentName, studentEmail, submittedAt: new Date().toISOString(),
@@ -536,6 +650,18 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   return (
     <div className="theme-dark min-h-screen bg-app flex flex-col">
       <TestWatermark text={`${studentName} · ${studentEmail}`} />
+      {!isFullscreen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-surface rounded-2xl border border-app shadow-sm w-full max-w-sm p-6 sm:p-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] flex items-center justify-center mx-auto mb-4">
+              <Maximize className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-ink mb-2">Fullscreen Required</h2>
+            <p className="text-sm text-ink-faint mb-6">This assessment must be taken in fullscreen. Your timer keeps running — resume to continue.</p>
+            <Button onClick={requestFullscreen} className="w-full" size="lg">Resume Fullscreen</Button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="page-header">
         <div className="px-4 sm:px-6 lg:px-8">
