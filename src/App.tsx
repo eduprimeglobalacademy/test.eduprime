@@ -1,16 +1,21 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, Suspense, lazy } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { TenantProvider, useTenant } from './contexts/TenantContext'
-import { LandingPage } from './components/LandingPage'
-import { AdminDashboard } from './components/admin/AdminDashboard'
-import { TeacherDashboard } from './components/teacher/TeacherDashboard'
-import { TestAccess } from './components/student/TestAccess'
-import { ClassEnrollment } from './components/student/ClassEnrollment'
 import { LoadingSpinner } from './components/ui/LoadingSpinner'
-import { OrgNotFound } from './components/tenant/OrgNotFound'
-import { RootMarketing } from './components/tenant/RootMarketing'
 import { ImpersonationBanner } from './components/superadmin/ImpersonationBanner'
 import { ShieldCheck } from 'lucide-react'
+
+// Route-level code splitting — a root-marketing visitor was previously downloading
+// AdminDashboard/TeacherDashboard (recharts, jspdf, the whole authoring wizard) in
+// the same bundle as the page they actually landed on. Each of these is only ever
+// needed once App.tsx has already decided which single one to render.
+const LandingPage = lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })))
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
+const TeacherDashboard = lazy(() => import('./components/teacher/TeacherDashboard').then(m => ({ default: m.TeacherDashboard })))
+const TestAccess = lazy(() => import('./components/student/TestAccess').then(m => ({ default: m.TestAccess })))
+const ClassEnrollment = lazy(() => import('./components/student/ClassEnrollment').then(m => ({ default: m.ClassEnrollment })))
+const OrgNotFound = lazy(() => import('./components/tenant/OrgNotFound').then(m => ({ default: m.OrgNotFound })))
+const RootMarketing = lazy(() => import('./components/tenant/RootMarketing').then(m => ({ default: m.RootMarketing })))
 
 const PLATFORM_CONSOLE_URL = 'https://admin.test.eduprimeglobalacademy.com'
 
@@ -102,12 +107,20 @@ function AppContent() {
   return <LandingPage />
 }
 
+const routeFallback = (
+  <div className="min-h-screen bg-app flex items-center justify-center">
+    <LoadingSpinner size="lg" />
+  </div>
+)
+
 function App() {
   return (
     <TenantProvider>
       <AuthProvider>
         <ImpersonationBanner />
-        <AppContent />
+        <Suspense fallback={routeFallback}>
+          <AppContent />
+        </Suspense>
       </AuthProvider>
     </TenantProvider>
   )
