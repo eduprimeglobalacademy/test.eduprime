@@ -84,6 +84,15 @@
     box-sizing: border-box;
   }
 
+  html, body {
+    /* Safety net — a single overflowing element anywhere (a long unbroken
+       string, a chart that won't shrink below its data, etc.) used to shift
+       the whole page sideways on narrow screens instead of just clipping.
+       Elements that need their own horizontal scroll still get it via their
+       own overflow-x-auto; this only removes the page-level side-scroll. */
+    overflow-x: hidden;
+  }
+
   body {
     @apply antialiased;
     background: var(--bg);
