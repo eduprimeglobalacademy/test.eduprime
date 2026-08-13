@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, Home, CreditCard, Palette, BarChart3, Hourglass } from 'lucide-react'
+import { Trash2, Plus, Users, Key, Clock, CheckCircle, XCircle, RefreshCw, Search, LogOut, Shield, Home, CreditCard, Palette, BarChart3, Hourglass, Menu, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -34,6 +34,7 @@ export function AdminDashboard() {
   const orgName = org?.name || 'EduPrime Global Academy'
   const orgLogo = org?.logo_url || '/eduprimelogo.jpg'
   const [viewMode, setViewMode] = useState<'dashboard' | 'billing' | 'branding' | 'analytics' | 'approvals'>('dashboard')
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => new URLSearchParams(window.location.search).get('welcome') === '1')
   const [tokens, setTokens] = useState<TeacherToken[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -214,6 +215,13 @@ export function AdminDashboard() {
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => setMobileNavOpen(v => !v)}
+                className="md:hidden shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-ink-soft hover:bg-app-outer transition-colors"
+                aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'}
+              >
+                {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
               <img src={orgLogo} alt={orgName} className="w-8 h-8 object-contain rounded-lg shrink-0" />
               <div className="min-w-0">
                 <h1 className="text-base sm:text-lg font-bold gradient-text truncate">{orgName}</h1>
@@ -234,11 +242,19 @@ export function AdminDashboard() {
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 relative">
+        {/* Mobile-only backdrop behind the drawer — tapping it closes the nav */}
+        {mobileNavOpen && (
+          <div className="fixed inset-0 top-16 bg-black/50 z-30 md:hidden" onClick={() => setMobileNavOpen(false)} />
+        )}
         {/* Sidebar — same shell as the educator dashboard, so the two roles
             read as one product instead of an admin settings page bolted
-            onto a real app. */}
-        <aside className="w-64 shrink-0 hidden md:flex flex-col bg-app-outer border-r border-app-strong px-4 py-6">
+            onto a real app. On mobile it's a fixed drawer toggled by the
+            header's hamburger button instead of being hidden outright. */}
+        <aside
+          onClick={() => setMobileNavOpen(false)}
+          className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-col w-64 shrink-0 bg-app-outer border-r border-app-strong px-4 py-6 fixed md:static top-16 md:top-auto bottom-0 md:bottom-auto left-0 z-40 overflow-y-auto`}
+        >
           <nav className="space-y-1">
             <button
               onClick={() => setViewMode('dashboard')}

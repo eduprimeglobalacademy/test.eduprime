@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Plus, BarChart3, Clock, Users, LogOut, GraduationCap, Layers, ListChecks, Play, Home, Settings as SettingsIcon, Star } from 'lucide-react'
+import { BookOpen, Plus, BarChart3, Clock, Users, LogOut, GraduationCap, Layers, ListChecks, Play, Home, Settings as SettingsIcon, Star, Menu, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTenant } from '../../contexts/TenantContext'
@@ -40,6 +40,7 @@ export function TeacherDashboard() {
   const [tests, setTests] = useState<Test[]>([])
   const [orgActiveTestCount, setOrgActiveTestCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const [selectedTestId, setSelectedTestId] = useState<string>('')
@@ -153,6 +154,13 @@ export function TeacherDashboard() {
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => setMobileNavOpen(v => !v)}
+                className="md:hidden shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-ink-soft hover:bg-app-outer transition-colors"
+                aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'}
+              >
+                {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
               <img src={orgLogo} alt={orgName} className="w-8 h-8 object-contain rounded-lg shrink-0" />
               <div className="min-w-0">
                 <h1 className="text-base sm:text-lg font-bold gradient-text truncate">{orgName}</h1>
@@ -173,9 +181,18 @@ export function TeacherDashboard() {
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
-        {/* Sidebar — full height, true left edge, separated by a border */}
-        <aside className="w-64 shrink-0 hidden md:flex flex-col bg-app-outer border-r border-app-strong px-4 py-6">
+      <div className="flex flex-1 min-h-0 relative">
+        {/* Mobile-only backdrop behind the drawer — tapping it closes the nav */}
+        {mobileNavOpen && (
+          <div className="fixed inset-0 top-16 bg-black/50 z-30 md:hidden" onClick={() => setMobileNavOpen(false)} />
+        )}
+        {/* Sidebar — full height, true left edge, separated by a border. On mobile it's a
+            fixed-position drawer toggled by the header's hamburger button instead of being
+            hidden with no alternative; clicking anything inside it closes the drawer. */}
+        <aside
+          onClick={() => setMobileNavOpen(false)}
+          className={`${mobileNavOpen ? 'flex' : 'hidden'} md:flex flex-col w-64 shrink-0 bg-app-outer border-r border-app-strong px-4 py-6 fixed md:static top-16 md:top-auto bottom-0 md:bottom-auto left-0 z-40 overflow-y-auto`}
+        >
           <nav className="space-y-1">
             <button
               onClick={goToDashboard}
