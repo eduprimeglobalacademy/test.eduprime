@@ -207,6 +207,19 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       if (testData.start_time && new Date(testData.start_time) > now) { setError('Test has not started yet'); setLoading(false); return }
       if (testData.end_time && new Date(testData.end_time) < now) { setError('Test has ended'); setLoading(false); return }
       setTest(testData)
+      // Students never authenticate (see CLAUDE.md) — but this app shares one
+      // Supabase client per origin, so a stray session from an admin/teacher
+      // who previously signed in on this same subdomain (e.g. opening their
+      // own test's join link in the same tab) would silently ride along on
+      // every request here, including the final test_attempts/student_answers
+      // inserts. Those inserts' RLS policies only grant the `anon` role, so
+      // an authenticated-but-irrelevant session gets rejected — surfacing as
+      // a confusing "Failed to submit test" at the very end of the exam. A
+      // Google-gated test is the one deliberate exception: it needs the
+      // session resolveGate is about to read.
+      if (!testData.require_google_auth) {
+        await supabase.auth.signOut({ scope: 'local' })
+      }
       const [{ data: qData, error: qError }, { data: secData }] = await Promise.all([
         supabase.from('questions').select('*, question_options (*)').eq('test_id', testData.id).order('question_order'),
         supabase.from('test_sections').select('*').eq('test_id', testData.id).order('section_order'),
