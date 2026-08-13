@@ -23,7 +23,7 @@ import { AnalyticsOverview } from './AnalyticsOverview'
 import { TeacherSettings } from './TeacherSettings'
 import { FocusList } from './FocusList'
 import { ErrorBoundary } from '../ErrorBoundary'
-import { useClasses } from '../../hooks/useClasses'
+import { useClasses, testBelongsToClass } from '../../hooks/useClasses'
 import { useFocusItems } from '../../hooks/useFocusItems'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 import type { Test, Teacher } from '../../lib/supabase'
@@ -66,8 +66,11 @@ export function TeacherDashboard() {
       const { data: teacherData } = await supabase.from('teachers').select('*').eq('user_id', user.id).single()
       setTeacher(teacherData)
       if (teacherData) {
-        const { data: testsData } = await supabase.from('tests').select('*, classes(id, name, course_name, grade_level)').eq('teacher_id', teacherData.id).order('created_at', { ascending: false })
-        setTests(testsData || [])
+        const { data: testsData } = await supabase.from('tests').select('*, classes(id, name, course_name, grade_level), test_classes(class_id)').eq('teacher_id', teacherData.id).order('created_at', { ascending: false })
+        setTests((testsData || []).map(t => ({
+          ...t,
+          test_class_ids: [...new Set([t.class_id, ...(t.test_classes ?? []).map((tc: { class_id: string }) => tc.class_id)].filter(Boolean))] as string[],
+        })))
         // org-wide, not just this teacher's own tests — max_active_tests is
         // an org-level limit, and a teacher can only SELECT their own rows.
         if (teacherData.org_id) {
@@ -229,7 +232,7 @@ export function TeacherDashboard() {
             {classes.length > 0 && (
               <div className="pl-3 py-1 space-y-0.5">
                 {classes.slice(0, 6).map(cls => {
-                  const classTests = tests.filter(t => t.class_id === cls.id)
+                  const classTests = tests.filter(t => testBelongsToClass(t, cls.id))
                   const live = classTests.filter(t => t.status === 'live').length
                   const active = effectiveViewMode === 'class-detail' && selectedClassId === cls.id
                   return (

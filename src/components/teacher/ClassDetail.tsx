@@ -1,7 +1,7 @@
 import { ArrowLeft, Plus, Clock, Play, CheckCircle, Layers, Settings as SettingsIcon } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { TestDashboard } from './TestDashboard'
-import { classLabel } from '../../hooks/useClasses'
+import { classLabel, testBelongsToClass } from '../../hooks/useClasses'
 import type { Test, Class } from '../../lib/supabase'
 
 interface ClassDetailProps {
@@ -21,7 +21,7 @@ export function ClassDetail({
 }: ClassDetailProps) {
   const cls = classes.find(c => c.id === classId)
 
-  const classTests = tests.filter(t => t.class_id === classId)
+  const classTests = tests.filter(t => testBelongsToClass(t, classId))
   const draft = classTests.filter(t => t.status === 'draft')
   const live = classTests.filter(t => t.status === 'live')
   const closed = classTests.filter(t => t.status === 'closed')

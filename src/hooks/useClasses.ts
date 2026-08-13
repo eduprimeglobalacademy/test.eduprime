@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Class } from '../lib/supabase'
+import type { Class, Test } from '../lib/supabase'
 
 type ClassInput = { name: string; course_name?: string; grade_level?: string; academic_term?: string }
 
@@ -56,4 +56,11 @@ export function useClasses(teacherId: string | undefined) {
 
 export function classLabel(cls: Pick<Class, 'name' | 'course_name'>): string {
   return cls.course_name ? `${cls.course_name} — ${cls.name}` : cls.name
+}
+
+// A test may be assigned to more than one class (test_classes) on top of
+// its primary class_id — this is the one place that distinction should be
+// checked, rather than each screen re-deriving it from the raw fields.
+export function testBelongsToClass(test: Pick<Test, 'class_id' | 'test_class_ids'>, classId: string): boolean {
+  return test.class_id === classId || !!test.test_class_ids?.includes(classId)
 }

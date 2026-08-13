@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus, BookOpen, Play, Clock, ChevronRight, X, Copy } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { testBelongsToClass } from '../../hooks/useClasses'
 import type { Class, Test } from '../../lib/supabase'
 
 interface ClassGridProps {
@@ -39,7 +40,7 @@ export function ClassGrid({ classes, tests, createClass, onOpenClass }: ClassGri
   }
 
   const statsFor = (cls: Class) => {
-    const classTests = tests.filter(t => t.class_id === cls.id)
+    const classTests = tests.filter(t => testBelongsToClass(t, cls.id))
     const live = classTests.filter(t => t.status === 'live')
     return {
       total: classTests.length,

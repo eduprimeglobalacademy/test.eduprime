@@ -296,12 +296,17 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       .maybeSingle()
     if (testBlock) { setBlockReason('test-blocked'); setPhase('blocked'); return }
 
-    if (testData.class_id) {
+    // A test can be assigned to more than one class (test_classes, on top
+    // of the primary class_id) — enrolled in any one of them is enough.
+    const { data: linkedClasses } = await supabase.from('test_classes').select('class_id').eq('test_id', testData.id)
+    const allClassIds = [...new Set([testData.class_id, ...(linkedClasses ?? []).map(l => l.class_id)].filter(Boolean))] as string[]
+    if (allClassIds.length > 0) {
       const { data: enrollment } = await supabase
         .from('class_students')
         .select('id')
-        .eq('class_id', testData.class_id)
+        .in('class_id', allClassIds)
         .eq('student_email', user.email)
+        .limit(1)
         .maybeSingle()
       if (!enrollment) { setBlockReason('not-enrolled'); setPhase('blocked'); return }
     }

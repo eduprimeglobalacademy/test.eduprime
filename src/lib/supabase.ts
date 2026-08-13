@@ -178,6 +178,11 @@ export interface Test {
   // Present only when fetched via `.select('*, classes(...)')` — a plain
   // `.select('*')` leaves this undefined, it is not always populated.
   classes?: Pick<Class, 'id' | 'name' | 'course_name' | 'grade_level'> | null
+  // Every class this test is assigned to (class_id plus any test_classes
+  // rows) — present only when a caller embeds test_classes and derives
+  // this after fetch, same convention as `classes` above. class_id alone
+  // remains "the first/primary" one for display back-compat.
+  test_class_ids?: string[]
   title: string
   description?: string
   test_code: string

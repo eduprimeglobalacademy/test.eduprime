@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Plus, X } from 'lucide-react'
 import { useClasses, classLabel } from '../../hooks/useClasses'
 import { Button } from '../ui/Button'
@@ -6,16 +6,35 @@ import { Input } from '../ui/Input'
 
 interface ClassPickerProps {
   teacherId: string
-  value: string
-  onChange: (classId: string) => void
+  value: string[]
+  onChange: (classIds: string[]) => void
 }
 
+// Chip + searchable dropdown rather than a checkbox list — a checkbox per
+// class stops scaling once a teacher has more than a handful of sections.
 export function ClassPicker({ teacherId, value, onChange }: ClassPickerProps) {
   const { classes, createClass } = useClasses(teacherId)
   const [showNewClass, setShowNewClass] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [newClass, setNewClass] = useState({ name: '', course_name: '', grade_level: '', academic_term: '' })
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setDropdownOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selected = classes.filter(c => value.includes(c.id))
+  const available = classes.filter(c => !value.includes(c.id) && classLabel(c).toLowerCase().includes(search.toLowerCase()))
+
+  const addClass = (id: string) => { onChange([...value, id]); setSearch('') }
+  const removeClass = (id: string) => onChange(value.filter(v => v !== id))
 
   const handleCreate = async () => {
     if (!newClass.name.trim()) { setError('Section name is required'); return }
@@ -28,7 +47,7 @@ export function ClassPicker({ teacherId, value, onChange }: ClassPickerProps) {
         grade_level: newClass.grade_level.trim() || undefined,
         academic_term: newClass.academic_term.trim() || undefined,
       })
-      onChange(created.id)
+      onChange([...value, created.id])
       setShowNewClass(false)
       setNewClass({ name: '', course_name: '', grade_level: '', academic_term: '' })
     } catch (err) {
@@ -39,27 +58,53 @@ export function ClassPicker({ teacherId, value, onChange }: ClassPickerProps) {
   }
 
   return (
-    <div>
-      <label className="block text-sm font-medium text-ink-soft mb-1.5">Class / Course (optional)</label>
+    <div ref={containerRef}>
+      <label className="block text-sm font-medium text-ink-soft mb-1.5">Classes / Courses (optional — leave empty for a one-off assessment)</label>
 
       {!showNewClass ? (
-        <div className="flex gap-2">
-          <select
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="input-base flex-1"
-          >
-            <option value="">No class — one-off assessment</option>
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {classLabel(cls)}{cls.grade_level ? ` (${cls.grade_level})` : ''}
-              </option>
+        <div className="relative">
+          <div className="input-base flex flex-wrap items-center gap-1.5 min-h-[42px] cursor-text" onClick={() => setDropdownOpen(true)}>
+            {selected.map(cls => (
+              <span key={cls.id} className="inline-flex items-center gap-1 bg-[var(--brand-primary-soft)] text-[var(--brand-primary-dark)] text-xs font-medium rounded-lg px-2 py-1">
+                {classLabel(cls)}
+                <button type="button" onClick={(e) => { e.stopPropagation(); removeClass(cls.id) }} className="hover:opacity-70">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
             ))}
-          </select>
-          <Button type="button" variant="outline" onClick={() => setShowNewClass(true)}>
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New</span>
-          </Button>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setDropdownOpen(true) }}
+              onFocus={() => setDropdownOpen(true)}
+              placeholder={selected.length === 0 ? 'Search classes…' : ''}
+              className="flex-1 min-w-[100px] bg-transparent outline-none text-sm text-ink"
+            />
+          </div>
+
+          {dropdownOpen && (
+            <div className="absolute z-10 mt-1 w-full bg-surface border border-app rounded-xl shadow-lg max-h-56 overflow-y-auto">
+              {available.length > 0 ? available.map(cls => (
+                <button
+                  key={cls.id}
+                  type="button"
+                  onClick={() => addClass(cls.id)}
+                  className="w-full text-left px-3 py-2 text-sm text-ink-soft hover:bg-app transition-colors"
+                >
+                  {classLabel(cls)}{cls.grade_level ? ` (${cls.grade_level})` : ''}
+                </button>
+              )) : (
+                <p className="px-3 py-2 text-sm text-ink-faint">{classes.length === 0 ? 'No classes yet' : 'No matches'}</p>
+              )}
+              <button
+                type="button"
+                onClick={() => { setShowNewClass(true); setDropdownOpen(false) }}
+                className="w-full text-left px-3 py-2 text-sm text-[var(--brand-primary)] font-medium hover:bg-app transition-colors border-t border-app flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />New class
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="border border-app rounded-xl p-4 bg-app space-y-3">

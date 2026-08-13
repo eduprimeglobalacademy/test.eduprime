@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Star, Plus, X, Trash2, User, Layers, ChevronRight } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { classLabel } from '../../hooks/useClasses'
+import { classLabel, testBelongsToClass } from '../../hooks/useClasses'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import type { Test, TeacherFocusItem } from '../../lib/supabase'
@@ -70,7 +70,7 @@ export function FocusList({ tests, classes, items, addStudentFocus, addClassFocu
   }, [studentItems.map(i => i.id).join(','), tests.length])
 
   const classStats = (clsId: string) => {
-    const classTests = tests.filter(t => t.class_id === clsId)
+    const classTests = tests.filter(t => testBelongsToClass(t, clsId))
     return {
       total: classTests.length,
       live: classTests.filter(t => t.status === 'live').length,

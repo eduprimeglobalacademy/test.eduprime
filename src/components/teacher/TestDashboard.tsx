@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Search, Filter, Clock, CheckCircle, Play } from 'lucide-react'
 import { TestList } from './TestList'
-import { classLabel } from '../../hooks/useClasses'
+import { classLabel, testBelongsToClass } from '../../hooks/useClasses'
 import type { Test } from '../../lib/supabase'
 
 interface TestDashboardProps {
@@ -34,7 +34,7 @@ export function TestDashboard({ tests, onTestUpdated, onEdit }: TestDashboardPro
 
   const filteredTests = tests.filter(test => {
     const matchesFilter = activeFilter === 'all' || test.status === activeFilter
-    const matchesClass = !classFilter || test.class_id === classFilter
+    const matchesClass = !classFilter || testBelongsToClass(test, classFilter)
     const matchesSearch = !searchTerm.trim() ||
       test.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       test.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||

@@ -4,7 +4,7 @@ import QRCode from 'qrcode'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { formatDateTime } from '../../lib/utils'
-import { classLabel } from '../../hooks/useClasses'
+import { classLabel, testBelongsToClass } from '../../hooks/useClasses'
 import { useClassRoster } from '../../hooks/useClassRoster'
 import type { Test, Class } from '../../lib/supabase'
 
@@ -39,7 +39,7 @@ export function ClassSettings({ classId, classes, tests, updateClass, deleteClas
   const [addError, setAddError] = useState('')
   const { roster, removeStudent, addStudent } = useClassRoster(classId)
 
-  const classTests = tests.filter(t => t.class_id === classId)
+  const classTests = tests.filter(t => testBelongsToClass(t, classId))
   const enrollmentLink = `${window.location.origin}/enroll?class=${classId}`
   const copyLink = () => {
     navigator.clipboard.writeText(enrollmentLink)

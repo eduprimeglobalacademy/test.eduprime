@@ -9,6 +9,7 @@ import { useTenant } from '../../contexts/TenantContext'
 import { usePlanLimits } from '../../hooks/usePlanLimits'
 import { useQuestionBank } from '../../hooks/useQuestionBank'
 import { useTestSections } from '../../hooks/useTestSections'
+import { useTestClasses } from '../../hooks/useTestClasses'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
@@ -103,7 +104,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const { plan } = usePlanLimits()
   const [testId, setTestId] = useState<string | undefined>(initialTestId)
   const [loading, setLoading] = useState(!!initialTestId)
-  const [classId, setClassId] = useState(initialClassId || '')
+  const [classIds, setClassIds] = useState<string[]>(initialClassId ? [initialClassId] : [])
   const [isPublicExam, setIsPublicExam] = useState(false)
   const [studentDetailFields, setStudentDetailFields] = useState<StudentDetailField[]>(ALL_STUDENT_DETAIL_FIELD_KEYS)
   const [testStatus, setTestStatus] = useState<string | undefined>(undefined)
@@ -127,6 +128,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   const canAdvanceStep = () => CREATION_STEPS[creationStep].key !== 'basic' || settings.title.trim().length > 0
   const { items: bankItems, saveToBank, deleteFromBank } = useQuestionBank(teacherId)
   const { sections, addSection, updateSection, removeSection, reorderSection } = useTestSections(testId)
+  const { setClasses: syncTestClasses } = useTestClasses(testId)
 
   const update = (key: keyof SettingsForm, value: any) => setSettings(prev => ({ ...prev, [key]: value }))
 
@@ -157,7 +159,16 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
           dGrade: test.grading_config?.dGrade?.toString() || '60',
           passingGrade: test.grading_config?.passingGrade?.toString() || '60',
         })
-        setClassId(test.class_id || '')
+        // Fetched directly here (a one-time seed inside this mount-only
+        // effect) rather than reacting to useTestClasses' query result —
+        // reacting to that would re-seed and clobber in-progress edits on
+        // every background refetch (e.g. window focus), since a fresh
+        // array from the same data is still a new reference.
+        const { data: linkedClasses } = await supabase.from('test_classes').select('class_id').eq('test_id', initialTestId)
+        setClassIds([
+          ...(test.class_id ? [test.class_id] : []),
+          ...(linkedClasses ?? []).map(r => r.class_id).filter(id => id !== test.class_id),
+        ])
         setIsPublicExam(test.is_public_exam)
         // Pre-existing public exams from before this feature had no
         // stored selection at all (column defaults to '{}') — default
@@ -194,7 +205,11 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
   }
 
   const buildPayload = () => ({
-    class_id: isPublicExam ? null : (classId || null),
+    // The first selected class, kept in sync purely so every screen that
+    // still reads the single class_id column for display (list badges,
+    // class-detail filters not yet touched this pass) shows something
+    // sensible — test_classes below is the actual multi-assignment list.
+    class_id: isPublicExam ? null : (classIds[0] || null),
     is_public_exam: isPublicExam,
     student_detail_fields: isPublicExam ? studentDetailFields : [],
     title: settings.title,
@@ -249,6 +264,14 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
           ...buildPayload(),
         }]).select().single()
         if (createError) throw createError
+        // Inserted directly against the fresh id rather than via
+        // useTestClasses' setClasses — that hook's mutation still closes
+        // over the pre-save (undefined) testId until the next render, so
+        // it can't be used for the create path.
+        if (classIds.length > 0) {
+          const { error: linkError } = await supabase.from('test_classes').insert(classIds.map(class_id => ({ test_id: data.id, class_id })))
+          if (linkError) throw linkError
+        }
         setTestId(data.id)
         setTestStatus(data.status)
         setBasicInfoOpen(false)
@@ -258,6 +281,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
           updated_at: new Date().toISOString(),
         }).eq('id', testId)
         if (updateError) throw updateError
+        await syncTestClasses(classIds)
       }
       onTestSaved()
       setSettingsSaved(true)
@@ -623,7 +647,7 @@ lines instead of "A./B." lines, one per acceptable answer.
                   </div>
                 </div>
               )}
-              {!isPublicExam && <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />}
+              {!isPublicExam && <ClassPicker teacherId={teacherId} value={classIds} onChange={setClassIds} />}
               <Input
                 label="Assessment Title *"
                 placeholder="e.g. Midterm Mathematics Exam"
@@ -662,8 +686,13 @@ lines instead of "A./B." lines, one per acceptable answer.
             </div>
           )}
 
+          {/* BehaviorFields' classId (blocked-students roster convenience,
+              enrollment-required copy) only ever reflects the primary
+              class — a secondary UI, not the security gate (resolveGate in
+              TestInterface checks every assigned class), so generalizing
+              it to multiple rosters isn't worth the complexity here. */}
           {creationStep === 1 && (
-            <BehaviorFields values={settings} onChange={update} classId={classId || undefined} />
+            <BehaviorFields values={settings} onChange={update} classId={classIds[0] || undefined} />
           )}
 
           {creationStep === 2 && (
@@ -711,7 +740,7 @@ lines instead of "A./B." lines, one per acceptable answer.
             </button>
             {basicInfoOpen && (
               <div className="px-5 sm:px-6 py-5 space-y-4">
-                <ClassPicker teacherId={teacherId} value={classId} onChange={setClassId} />
+                <ClassPicker teacherId={teacherId} value={classIds} onChange={setClassIds} />
                 <Input
                   label="Assessment Title *"
                   placeholder="e.g. Midterm Mathematics Exam"

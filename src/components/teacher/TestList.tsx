@@ -46,6 +46,12 @@ export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
       }]).select().single()
       if (testError) throw testError
 
+      const allClassIds = test.test_class_ids ?? (test.class_id ? [test.class_id] : [])
+      if (allClassIds.length > 0) {
+        const { error: classLinkError } = await supabase.from('test_classes').insert(allClassIds.map(class_id => ({ test_id: newTest.id, class_id })))
+        if (classLinkError) throw classLinkError
+      }
+
       const { data: sections } = await supabase.from('test_sections').select('*').eq('test_id', test.id).order('section_order')
       const sectionIdMap: Record<string, string> = {}
       if (sections && sections.length > 0) {
@@ -152,6 +158,7 @@ export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
                         <Layers className="w-3 h-3" />
                         {classLabel(test.classes)}
                         {test.classes.grade_level ? ` · ${test.classes.grade_level}` : ''}
+                        {(test.test_class_ids?.length ?? 0) > 1 ? ` +${test.test_class_ids!.length - 1} more` : ''}
                       </span>
                     )}
                   </div>
