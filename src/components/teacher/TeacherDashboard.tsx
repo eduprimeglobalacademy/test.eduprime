@@ -48,6 +48,10 @@ export function TeacherDashboard() {
   const [settingsTestId, setSettingsTestId] = useState<string | undefined>(undefined)
   const [settingsClassId, setSettingsClassId] = useState<string>('')
   const [returnTo, setReturnTo] = useState<ViewMode>('dashboard')
+  // Whether Preview/Reports was opened from a list view or from inside the wizard —
+  // tracked separately from returnTo so entering the wizard's own returnTo (the list
+  // it was originally opened from, e.g. 'assessments') never gets clobbered.
+  const [detailOrigin, setDetailOrigin] = useState<'list' | 'author'>('list')
   const { classes, createClass, updateClass, deleteClass } = useClasses(teacher?.id)
   const { items: focusItems, addStudentFocus, addClassFocus, removeFocus } = useFocusItems(teacher?.id)
 
@@ -94,15 +98,32 @@ export function TeacherDashboard() {
     await addStudentFocus({ email, name })
   }
 
-  const handlePreview = (testId: string) => { setReturnTo(viewMode); setSelectedTestId(testId); setViewMode('preview') }
-  const handleReports = (testId: string) => { setReturnTo(viewMode); setSelectedTestId(testId); setViewMode('reports') }
+  const handlePreview = (testId: string) => {
+    setDetailOrigin(viewMode === 'author' ? 'author' : 'list')
+    if (viewMode !== 'author') setReturnTo(viewMode)
+    setSelectedTestId(testId)
+    setViewMode('preview')
+  }
+  const handleReports = (testId: string) => {
+    setDetailOrigin(viewMode === 'author' ? 'author' : 'list')
+    if (viewMode !== 'author') setReturnTo(viewMode)
+    setSelectedTestId(testId)
+    setViewMode('reports')
+  }
   const handleAuthorNew = (classId?: string) => { setReturnTo(viewMode); setAuthoringTestId(undefined); setAuthoringClassId(classId); setViewMode('author') }
   const handleAuthorExisting = (testId: string) => { setReturnTo(viewMode); setAuthoringTestId(testId); setAuthoringClassId(undefined); setViewMode('author') }
   const handleBackFromDetail = () => {
     setSelectedTestId('')
-    setAuthoringTestId(undefined)
-    setAuthoringClassId(undefined)
-    setViewMode(returnTo)
+    // Preview/Reports opened from inside the wizard should reopen the same test in the
+    // wizard, not fall back to returnTo's list — which by then still points to whatever
+    // list the wizard itself was originally opened from, not "author".
+    if (detailOrigin === 'author') {
+      setViewMode('author')
+    } else {
+      setAuthoringTestId(undefined)
+      setAuthoringClassId(undefined)
+      setViewMode(returnTo)
+    }
     fetchData()
   }
   const openTestSettings = (id: string) => { setSettingsTestId(id); setViewMode('test-settings') }

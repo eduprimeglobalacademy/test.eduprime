@@ -241,7 +241,9 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
                     <h3 className="text-base font-semibold text-ink mb-5">Grade Distribution</h3>
                     <ResponsiveContainer width="100%" height={260}>
                       <PieChart>
-                        <Pie data={gradeDistribution} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${name.split(' ')[0]}: ${(percent * 100).toFixed(0)}%`}>
+                        {/* A single 100%-share category's grow-in animation never resolves to a rendered path in this
+                            recharts version (stays an empty <g> indefinitely) — skip the animation for that case. */}
+                        <Pie data={gradeDistribution} cx="50%" cy="50%" outerRadius={90} dataKey="value" isAnimationActive={gradeDistribution.length > 1} label={({ name, percent }) => `${name.split(' ')[0]}: ${(percent * 100).toFixed(0)}%`}>
                           {gradeDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                         </Pie>
                         <Tooltip />
