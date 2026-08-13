@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { QuestionBankItem, QuestionBankOption, QuestionType } from '../lib/supabase'
 
@@ -11,24 +11,23 @@ interface SaveToBankInput {
 }
 
 export function useQuestionBank(teacherId: string | undefined) {
-  const [items, setItems] = useState<QuestionBankItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const queryKey = ['question-bank', teacherId]
 
-  const fetchItems = useCallback(async () => {
-    if (!teacherId) { setLoading(false); return }
-    setLoading(true)
-    const { data } = await supabase
-      .from('question_bank_items')
-      .select('*, question_bank_options(*)')
-      .order('created_at', { ascending: false })
-    setItems((data || []).map((item) => ({
-      ...item,
-      options: (item.question_bank_options || []).sort((a: QuestionBankOption, b: QuestionBankOption) => a.option_order - b.option_order),
-    })))
-    setLoading(false)
-  }, [teacherId])
-
-  useEffect(() => { fetchItems() }, [fetchItems])
+  const { data: items, isLoading } = useQuery({
+    queryKey,
+    queryFn: async (): Promise<QuestionBankItem[]> => {
+      const { data } = await supabase
+        .from('question_bank_items')
+        .select('*, question_bank_options(*)')
+        .order('created_at', { ascending: false })
+      return (data || []).map((item) => ({
+        ...item,
+        options: (item.question_bank_options || []).sort((a: QuestionBankOption, b: QuestionBankOption) => a.option_order - b.option_order),
+      }))
+    },
+    enabled: !!teacherId,
+  })
 
   const saveToBank = async ({ teacherId, questionText, points, questionType, options }: SaveToBankInput) => {
     const { data: item, error } = await supabase
@@ -42,14 +41,20 @@ export function useQuestionBank(teacherId: string | undefined) {
     )
     if (optError) throw optError
 
-    await fetchItems()
+    await queryClient.invalidateQueries({ queryKey })
     return item as QuestionBankItem
   }
 
   const deleteFromBank = async (itemId: string) => {
     await supabase.from('question_bank_items').delete().eq('id', itemId)
-    await fetchItems()
+    await queryClient.invalidateQueries({ queryKey })
   }
 
-  return { items, loading, saveToBank, deleteFromBank, refetch: fetchItems }
+  return {
+    items: items ?? [],
+    loading: !teacherId ? false : isLoading,
+    saveToBank,
+    deleteFromBank,
+    refetch: () => queryClient.invalidateQueries({ queryKey }),
+  }
 }

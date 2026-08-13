@@ -1,20 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { TestCollaborator } from '../lib/supabase'
 
 export function useTestCollaborators(testId: string | undefined) {
-  const [collaborators, setCollaborators] = useState<TestCollaborator[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const queryKey = ['test-collaborators', testId]
 
-  const fetchCollaborators = useCallback(async () => {
-    if (!testId) { setLoading(false); return }
-    setLoading(true)
-    const { data } = await supabase.rpc('get_test_collaborators', { p_test_id: testId })
-    setCollaborators(data || [])
-    setLoading(false)
-  }, [testId])
-
-  useEffect(() => { fetchCollaborators() }, [fetchCollaborators])
+  const { data: collaborators, isLoading } = useQuery({
+    queryKey,
+    queryFn: async (): Promise<TestCollaborator[]> => {
+      const { data } = await supabase.rpc('get_test_collaborators', { p_test_id: testId })
+      return data ?? []
+    },
+    enabled: !!testId,
+  })
 
   const addByEmail = async (email: string): Promise<string | null> => {
     if (!testId) return 'Missing test'
@@ -27,14 +26,20 @@ export function useTestCollaborators(testId: string | undefined) {
     if (insertError) {
       return insertError.code === '23505' ? 'That educator is already a collaborator on this test.' : 'Failed to add collaborator.'
     }
-    await fetchCollaborators()
+    await queryClient.invalidateQueries({ queryKey })
     return null
   }
 
   const remove = async (collaboratorId: string) => {
     await supabase.from('test_collaborators').delete().eq('id', collaboratorId)
-    await fetchCollaborators()
+    await queryClient.invalidateQueries({ queryKey })
   }
 
-  return { collaborators, loading, addByEmail, remove, refetch: fetchCollaborators }
+  return {
+    collaborators: collaborators ?? [],
+    loading: !testId ? false : isLoading,
+    addByEmail,
+    remove,
+    refetch: () => queryClient.invalidateQueries({ queryKey }),
+  }
 }
