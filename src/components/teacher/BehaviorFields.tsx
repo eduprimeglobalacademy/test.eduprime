@@ -1,4 +1,4 @@
-import { Eye, Clock, ShieldCheck } from 'lucide-react'
+import { Eye, Clock, ShieldCheck, Ban } from 'lucide-react'
 import { Input } from '../ui/Input'
 import { BlockedStudentsPanel } from './BlockedStudentsPanel'
 
@@ -70,6 +70,9 @@ export function BehaviorFields({ values, onChange, classId, testId }: BehaviorFi
               value={values.timePerQuestion}
               onChange={(e) => onChange('timePerQuestion', e.target.value)}
             />
+            <p className="text-xs text-ink-faint mt-1.5">
+              Applied to new questions as you add them from here on — not saved on its own, and it won't affect questions added in a later visit. Each question's own time limit can still be changed individually afterward.
+            </p>
           </div>
         )}
       </div>
@@ -96,14 +99,21 @@ export function BehaviorFields({ values, onChange, classId, testId }: BehaviorFi
             </p>
           </div>
         </label>
-        {values.requireGoogleAuth && (
-          <div className="ml-7 pt-2 border-t border-app mt-2">
-            {testId ? (
-              <BlockedStudentsPanel testId={testId} classId={classId} />
-            ) : (
-              <p className="text-xs text-ink-muted">Save the assessment to block specific students.</p>
-            )}
-          </div>
+      </div>
+
+      {/* Blocked students — a per-test blocklist, independent of whether
+          Google sign-in is required. Previously nested inside the "require
+          Google sign-in" toggle above, which meant a teacher couldn't even
+          see this panel (let alone use it) unless that toggle was on —
+          misleading, since blocking works the same regardless. */}
+      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft mb-1">
+          <Ban className="w-4 h-4 text-[var(--brand-primary)]" />Blocked Students
+        </div>
+        {testId ? (
+          <BlockedStudentsPanel testId={testId} classId={classId} />
+        ) : (
+          <p className="text-xs text-ink-muted">Save the assessment to block specific students.</p>
         )}
       </div>
     </div>

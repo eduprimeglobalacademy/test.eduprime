@@ -28,8 +28,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
 
-    console.log('Validating token:', token, 'for phone:', phoneNumber)
-
     // Step 1: Atomically check and mark token as used
     const { data: updatedToken, error: tokenError } = await supabaseAdmin
       .from('teacher_tokens')

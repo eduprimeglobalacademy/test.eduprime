@@ -9,6 +9,7 @@ import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { UsageMeter } from '../ui/UsageMeter'
 import { OrgStatusBanner } from '../billing/OrgStatusBanner'
+import { ConnectGoogleButton } from '../auth/ConnectGoogleButton'
 import { TestAuthoring } from './TestAuthoring'
 import { TestDashboard } from './TestDashboard'
 import { TestPreview } from './TestPreview'
@@ -140,6 +141,7 @@ export function TeacherDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
+              <ConnectGoogleButton />
               <span className="text-sm text-ink-soft hidden md:block">Welcome, {user?.name}</span>
               <Button variant="outline" size="sm" onClick={() => signOut()}>
                 <LogOut className="w-4 h-4" />

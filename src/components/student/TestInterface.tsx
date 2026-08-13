@@ -214,6 +214,24 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
 
   const checkDuplicate = async () => {
     try {
+      // The per-test blocklist previously only got checked inside the
+      // Google-sign-in gate (resolveGate) — a test that doesn't require
+      // Google sign-in (the common case; it's opt-in) never queried
+      // test_blocked_students at all, so a teacher-blocked student could
+      // just type a different name/email and join anyway. Checking here
+      // too, right after details are entered, covers every test
+      // regardless of whether it's Google-gated (resolveGate's check
+      // still runs first for those, giving an earlier "you're blocked"
+      // before the details form even shows — this is a deliberate,
+      // harmless double-check for that case, not just for the gap).
+      const { data: blockedRow } = await supabase
+        .from('test_blocked_students')
+        .select('id')
+        .eq('test_id', test!.id)
+        .eq('student_email', studentEmail.trim())
+        .maybeSingle()
+      if (blockedRow) { setBlockReason('test-blocked'); setPhase('blocked'); return }
+
       const { data: alreadyAttempted } = await supabase.rpc('has_attempted', {
         p_test_id: test!.id,
         p_student_email: studentEmail.trim(),

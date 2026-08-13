@@ -258,7 +258,10 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
       question_text: '',
       question_order: questions.length + 1,
       points: 1,
-      time_limit_seconds: null,
+      // "Default time per question" (Behavior settings) only means something
+      // once per-question timing is actually on — otherwise a new question
+      // starts with no time limit, same as before.
+      time_limit_seconds: settings.perQuestionTiming && settings.timePerQuestion ? parseInt(settings.timePerQuestion) : null,
       question_type: 'single_select',
       section_id: null,
       isNew: true,
@@ -364,7 +367,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
       if (/^(\d+)[.)]\s+/.test(trimmed)) {
         if (currentQ) newQuestions.push(currentQ)
         const qText = trimmed.replace(/^(\d+)[.)]\s+/, '')
-        currentQ = { id: `new-${Date.now()}-${newQuestions.length}`, question_text: qText, question_order: questions.length + newQuestions.length + 1, points: 1, time_limit_seconds: null, question_type: 'single_select', section_id: null, isNew: true, options: [] }
+        currentQ = { id: `new-${Date.now()}-${newQuestions.length}`, question_text: qText, question_order: questions.length + newQuestions.length + 1, points: 1, time_limit_seconds: settings.perQuestionTiming && settings.timePerQuestion ? parseInt(settings.timePerQuestion) : null, question_type: 'single_select', section_id: null, isNew: true, options: [] }
       } else if (/^Type:\s*/i.test(trimmed) && currentQ) {
         const t = trimmed.replace(/^Type:\s*/i, '').trim().toLowerCase().replace(/[^a-z_]/g, '')
         if ((['single_select', 'multi_select', 'true_false', 'short_answer'] as string[]).includes(t)) currentQ.question_type = t as QuestionType
@@ -419,7 +422,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
       question_text: b.question_text,
       question_order: questions.length + i + 1,
       points: b.points,
-      time_limit_seconds: null,
+      time_limit_seconds: settings.perQuestionTiming && settings.timePerQuestion ? parseInt(settings.timePerQuestion) : null,
       question_type: b.question_type || 'single_select',
       section_id: null,
       isNew: true,

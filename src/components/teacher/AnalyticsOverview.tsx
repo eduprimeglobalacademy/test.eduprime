@@ -42,6 +42,11 @@ export function AnalyticsOverview({ tests }: AnalyticsOverviewProps) {
 
   const testById = new Map(tests.map(t => [t.id, t]))
   const pct = (r: Row) => (r.total_score / r.max_score) * 100
+  // Each test can configure its own passing grade — a cross-test rollup
+  // has to check each attempt against its own test's threshold (falling
+  // back to 60 for a test that never configured one), not one global cutoff.
+  const passingGradeFor = (testId: string) => testById.get(testId)?.grading_config?.passingGrade ?? 60
+  const passed = (r: Row) => pct(r) >= passingGradeFor(r.test_id)
 
   const stats = attempts.length > 0 ? (() => {
     const percentages = attempts.map(pct)
@@ -49,7 +54,7 @@ export function AnalyticsOverview({ tests }: AnalyticsOverviewProps) {
     return {
       submissions: attempts.length,
       averageScore: Math.round(avg),
-      passRate: Math.round(percentages.filter(p => p >= 60).length / percentages.length * 100),
+      passRate: Math.round(attempts.filter(passed).length / attempts.length * 100),
       testsGraded: new Set(attempts.map(a => a.test_id)).size,
     }
   })() : null
@@ -101,7 +106,7 @@ export function AnalyticsOverview({ tests }: AnalyticsOverviewProps) {
             {[
               { icon: Users, color: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]', value: stats.submissions, label: 'Total Submissions' },
               { icon: TrendingUp, color: 'bg-emerald-100 text-emerald-600', value: `${stats.averageScore}%`, label: 'Average Score' },
-              { icon: Target, color: 'bg-[var(--brand-secondary-soft)] text-[var(--brand-secondary)]', value: `${stats.passRate}%`, label: 'Pass Rate (≥60%)' },
+              { icon: Target, color: 'bg-[var(--brand-secondary-soft)] text-[var(--brand-secondary)]', value: `${stats.passRate}%`, label: 'Pass Rate (per-test threshold)' },
               { icon: Award, color: 'bg-amber-100 text-amber-600', value: stats.testsGraded, label: 'Assessments Graded' },
             ].map(({ icon: Icon, color, value, label }) => (
               <div key={label} className="stat-card text-center">

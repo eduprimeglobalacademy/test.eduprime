@@ -131,11 +131,26 @@ serve(async (req) => {
   }).eq('id', subscription.id)
 
   switch (event.event) {
+    // Only the initial activation of a subscription should set plan_id —
+    // that's the one moment the org is genuinely moving onto the plan
+    // they just subscribed to. A recurring charged/renewal event doesn't
+    // change which plan they're on and previously reset plan_id anyway,
+    // which meant a platform admin's manual plan override (Organizations
+    // page in the platform console only ever writes organizations.plan_id,
+    // never subscriptions.plan_id) would silently get reverted back to
+    // whatever plan this Razorpay subscription was originally created
+    // against, on the very next renewal charge.
     case 'subscription.activated':
-    case 'subscription.charged':
       await supabaseAdmin.from('organizations').update({
         status: 'active',
         plan_id: subscription.plan_id,
+        grace_ends_at: null,
+      }).eq('id', subscription.org_id)
+      break
+
+    case 'subscription.charged':
+      await supabaseAdmin.from('organizations').update({
+        status: 'active',
         grace_ends_at: null,
       }).eq('id', subscription.org_id)
       break

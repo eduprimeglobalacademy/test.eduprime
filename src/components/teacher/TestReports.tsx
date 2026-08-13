@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { supabase } from '../../lib/supabase'
 import { formatDateTime, exportToCSV } from '../../lib/utils'
 import { usePlanLimits } from '../../hooks/usePlanLimits'
+import { useAddonCapacity } from '../../hooks/useAddonCapacity'
 import { useTenant } from '../../contexts/TenantContext'
 import { classLabel } from '../../hooks/useClasses'
 import { Button } from '../ui/Button'
@@ -27,9 +28,9 @@ const GRADE_COLORS = ['#10B981', '#06B6D4', '#F59E0B', '#F97316', '#EF4444']
 export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestReportsProps) {
   const { plan } = usePlanLimits()
   const { org } = useTenant()
+  const { extraStudents: extraStudentCapacity } = useAddonCapacity()
   const [test, setTest] = useState<Test | null>(null)
   const [attempts, setAttempts] = useState<AttemptWithAnswers[]>([])
-  const [extraStudentCapacity, setExtraStudentCapacity] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -43,17 +44,6 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
       const { data: attData, error: ae } = await supabase.from('test_attempts').select('*, student_answers (*)').eq('test_id', testId).eq('is_submitted', true).not('total_score', 'is', null).not('max_score', 'is', null).gt('max_score', 0).order('submitted_at', { ascending: false })
       if (ae) throw ae
       setAttempts(attData.map(a => ({ ...a, answers: a.student_answers || [] })))
-
-      if (testData?.org_id) {
-        const { data: addons } = await supabase
-          .from('org_capacity_addons').select('quantity, expires_at')
-          .eq('org_id', testData.org_id).eq('kind', 'extra_students').eq('status', 'active')
-        const now = Date.now()
-        const extra = (addons || [])
-          .filter(a => !a.expires_at || new Date(a.expires_at).getTime() > now)
-          .reduce((s, a) => s + a.quantity, 0)
-        setExtraStudentCapacity(extra)
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load report data')
     } finally {
@@ -94,6 +84,16 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
     exportToCSV(data, `${test?.title}_results`)
   }
 
+  // Every grade-derived stat on this screen (pass rate, the grade
+  // distribution chart, and the per-student Grade column below) reads
+  // from the same config now, falling back to the same 90/80/70/60/60
+  // defaults GradingFields itself defaults to — previously the pie chart
+  // and pass-rate stat silently ignored a test's configured boundaries
+  // while the per-student column respected them, so they could disagree
+  // about a borderline student's grade on the same screen.
+  const gradingCfg = test?.grading_config || { aGrade: 90, bGrade: 80, cGrade: 70, dGrade: 60, passingGrade: 60 }
+  const passingGrade = gradingCfg.passingGrade ?? 60
+
   const stats = (() => {
     const valid = attempts.filter(a => a.max_score > 0)
     if (!valid.length) return null
@@ -105,7 +105,7 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
       averageScore: Math.round(avg),
       highestScore: Math.round(Math.max(...scores)),
       lowestScore: Math.round(Math.min(...scores)),
-      passRate: Math.round(scores.filter(s => s >= 60).length / scores.length * 100),
+      passRate: Math.round(scores.filter(s => s >= passingGrade).length / scores.length * 100),
       averageTime: times.length ? Math.round(times.reduce((s, t) => s + t, 0) / times.length / 60) : 0,
     }
   })()
@@ -113,14 +113,22 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
   const gradeDistribution = (() => {
     const valid = attempts.filter(a => a.max_score > 0)
     if (!valid.length) return []
-    const g: Record<string, number> = { 'A (90-100%)': 0, 'B (80-89%)': 0, 'C (70-79%)': 0, 'D (60-69%)': 0, 'F (0-59%)': 0 }
+    const c = gradingCfg
+    const labels = [
+      `A (${c.aGrade}-100%)`,
+      `B (${c.bGrade}-${c.aGrade - 1}%)`,
+      `C (${c.cGrade}-${c.bGrade - 1}%)`,
+      `D (${c.dGrade}-${c.cGrade - 1}%)`,
+      `F (0-${c.dGrade - 1}%)`,
+    ]
+    const g: Record<string, number> = Object.fromEntries(labels.map(l => [l, 0]))
     valid.forEach(a => {
       const p = ((a.total_score || 0) / a.max_score) * 100
-      if (p >= 90) g['A (90-100%)']++
-      else if (p >= 80) g['B (80-89%)']++
-      else if (p >= 70) g['C (70-79%)']++
-      else if (p >= 60) g['D (60-69%)']++
-      else g['F (0-59%)']++
+      if (p >= c.aGrade) g[labels[0]]++
+      else if (p >= c.bGrade) g[labels[1]]++
+      else if (p >= c.cGrade) g[labels[2]]++
+      else if (p >= c.dGrade) g[labels[3]]++
+      else g[labels[4]]++
     })
     return Object.entries(g).filter(([, v]) => v > 0).map(([name, value], i) => ({ name, value, color: GRADE_COLORS[i] }))
   })()
@@ -140,8 +148,8 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
     return Object.entries(r).map(([range, count]) => ({ range, count }))
   })()
 
-  const getGrade = (pct: number, cfg: any) => {
-    const c = cfg || { aGrade: 90, bGrade: 80, cGrade: 70, dGrade: 60 }
+  const getGrade = (pct: number) => {
+    const c = gradingCfg
     if (pct >= c.aGrade) return { grade: 'A', cls: 'bg-emerald-100 text-emerald-700' }
     if (pct >= c.bGrade) return { grade: 'B', cls: 'bg-blue-100 text-blue-700' }
     if (pct >= c.cGrade) return { grade: 'C', cls: 'bg-amber-100 text-amber-700' }
@@ -211,7 +219,7 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
                   { icon: TrendingUp, color: 'bg-emerald-100 text-emerald-600', value: `${stats.averageScore}%`, label: 'Average Score' },
                   { icon: Award, color: 'bg-amber-100 text-amber-600', value: `${stats.highestScore}%`, label: 'Highest Score' },
                   { icon: Target, color: 'bg-red-100 text-red-600', value: `${stats.lowestScore}%`, label: 'Lowest Score' },
-                  { icon: BarChart3, color: 'bg-[var(--brand-secondary-soft)] text-[var(--brand-secondary)]', value: `${stats.passRate}%`, label: 'Pass Rate (≥60%)' },
+                  { icon: BarChart3, color: 'bg-[var(--brand-secondary-soft)] text-[var(--brand-secondary)]', value: `${stats.passRate}%`, label: `Pass Rate (≥${passingGrade}%)` },
                   { icon: Clock, color: 'bg-blue-100 text-blue-600', value: `${stats.averageTime}m`, label: 'Avg Time' },
                 ].map(({ icon: Icon, color, value, label }) => (
                   <div key={label} className="bg-surface rounded-2xl border border-app shadow-sm p-5 text-center">
@@ -282,7 +290,7 @@ export function TestReports({ testId, onBack, onFlagStudent, isFlagged }: TestRe
                   <tbody className="divide-y divide-app">
                     {attempts.map(a => {
                       const pct = a.max_score > 0 ? Math.round(((a.total_score || 0) / a.max_score) * 100) : 0
-                      const { grade, cls } = getGrade(pct, test?.grading_config)
+                      const { grade, cls } = getGrade(pct)
                       const unlocked = isUnlocked(a.id)
                       if (!unlocked) {
                         return (

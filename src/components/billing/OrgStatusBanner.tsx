@@ -9,6 +9,18 @@ interface OrgStatusBannerProps {
 
 export function OrgStatusBanner({ org, subscription }: OrgStatusBannerProps) {
   if (org.status === 'trial' && org.trial_ends_at) {
+    const trialExpired = new Date(org.trial_ends_at) <= new Date()
+    if (trialExpired) {
+      return (
+        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-900">Trial expired — access restricted</p>
+            <p className="text-xs text-red-700 mt-0.5">Your trial ended {formatDateTime(org.trial_ends_at)}. New assessments and educator tokens are paused until you subscribe. Existing tests, results, and students in progress are unaffected.</p>
+          </div>
+        </div>
+      )
+    }
     const daysLeft = Math.max(0, Math.ceil((new Date(org.trial_ends_at).getTime() - Date.now()) / 86400000))
     return (
       <div className="flex items-start gap-3 p-4 bg-[var(--brand-primary-soft)] border border-[var(--brand-primary-soft)] rounded-xl">
