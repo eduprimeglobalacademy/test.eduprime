@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Copy, ExternalLink, Calendar, Clock, Play, XCircle, RotateCcw, Layers, Hourglass } from 'lucide-react'
+import { Copy, ExternalLink, Calendar, Clock, Play, XCircle, RotateCcw, Layers, Hourglass, Files } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatDateTime } from '../../lib/utils'
 import { classLabel } from '../../hooks/useClasses'
@@ -15,6 +15,82 @@ interface TestListProps {
 export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
   const [copying, setCopying] = useState<string | null>(null)
   const [toggleError, setToggleError] = useState('')
+  const [duplicating, setDuplicating] = useState<string | null>(null)
+  const [duplicateError, setDuplicateError] = useState('')
+
+  // Clones a test's settings, sections, and questions/options into a new
+  // draft (or pending_approval, matching the same public-exam gate a fresh
+  // "New Assessment" would hit) — never the original's code, timing window,
+  // or approval state, since those are specific to that one run.
+  const handleDuplicate = async (e: React.MouseEvent, test: Test) => {
+    e.stopPropagation()
+    setDuplicateError('')
+    setDuplicating(test.id)
+    try {
+      const testCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+      const { data: newTest, error: testError } = await supabase.from('tests').insert([{
+        teacher_id: test.teacher_id,
+        class_id: test.class_id || null,
+        title: `${test.title} (Copy)`,
+        description: test.description || null,
+        test_code: testCode,
+        status: test.is_public_exam ? 'pending_approval' : 'draft',
+        duration_minutes: test.duration_minutes ?? null,
+        show_results: test.show_results,
+        allow_navigation_back: test.allow_navigation_back,
+        per_question_timing: test.per_question_timing,
+        require_google_auth: test.require_google_auth,
+        is_public_exam: test.is_public_exam,
+        student_detail_fields: test.student_detail_fields ?? [],
+        grading_config: test.grading_config ?? null,
+      }]).select().single()
+      if (testError) throw testError
+
+      const { data: sections } = await supabase.from('test_sections').select('*').eq('test_id', test.id).order('section_order')
+      const sectionIdMap: Record<string, string> = {}
+      if (sections && sections.length > 0) {
+        const { data: newSections, error: secError } = await supabase.from('test_sections').insert(
+          sections.map(s => ({
+            test_id: newTest.id, title: s.title, section_order: s.section_order,
+            timing_mode: s.timing_mode, duration_minutes: s.duration_minutes, allow_free_navigation: s.allow_free_navigation,
+          }))
+        ).select()
+        if (secError) throw secError
+        sections.forEach((s, i) => { sectionIdMap[s.id] = newSections![i].id })
+      }
+
+      const { data: questions, error: qFetchError } = await supabase
+        .from('questions').select('*, question_options (*)').eq('test_id', test.id).order('question_order')
+      if (qFetchError) throw qFetchError
+      for (const q of questions || []) {
+        const { data: newQ, error: qError } = await supabase.from('questions').insert([{
+          test_id: newTest.id, question_text: q.question_text, question_order: q.question_order,
+          points: q.points, time_limit_seconds: q.time_limit_seconds, question_type: q.question_type,
+          section_id: q.section_id ? sectionIdMap[q.section_id] ?? null : null,
+        }]).select().single()
+        if (qError) throw qError
+        const opts = q.question_options || []
+        if (opts.length > 0) {
+          const { error: optError } = await supabase.from('question_options').insert(
+            opts.map((o: { option_text: string; is_correct: boolean; option_order: number }) => ({
+              question_id: newQ.id, option_text: o.option_text, is_correct: o.is_correct, option_order: o.option_order,
+            }))
+          )
+          if (optError) throw optError
+        }
+      }
+
+      onTestUpdated()
+      onEdit(newTest)
+    } catch (err) {
+      const code = (err && typeof err === 'object' && 'code' in err) ? (err as { code: string }).code : undefined
+      setDuplicateError(code === '42501'
+        ? "Can't duplicate — you're at your plan's active assessment limit. Close an existing assessment, buy more slots from Billing, or upgrade your plan."
+        : err instanceof Error ? err.message : 'Could not duplicate this assessment.')
+    } finally {
+      setDuplicating(null)
+    }
+  }
 
   const handleToggleStatus = async (e: React.MouseEvent, test: Test) => {
     e.stopPropagation()
@@ -47,8 +123,8 @@ export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
 
   return (
     <div>
-      {toggleError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{toggleError}</div>
+      {(toggleError || duplicateError) && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{toggleError || duplicateError}</div>
       )}
       <div className="grid lg:grid-cols-2 gap-4 items-start">
       {tests.map(test => {
@@ -132,7 +208,16 @@ export function TestList({ tests, onTestUpdated, onEdit }: TestListProps) {
                 </div>
               )}
 
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  loading={duplicating === test.id}
+                  onClick={(e) => handleDuplicate(e, test)}
+                  title="Duplicate this assessment"
+                >
+                  <Files className="w-3.5 h-3.5" />Duplicate
+                </Button>
                 {test.status === 'pending_approval' ? (
                   <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                     <Hourglass className="w-3.5 h-3.5" />Awaiting admin approval

@@ -323,6 +323,16 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
     if (signInError) setAuthError(signInError.message)
   }
 
+  // Drives the Continue button's disabled state directly, rather than only
+  // validating after a click — same rules as handleDetailsSubmit below.
+  const isDetailsValid =
+    studentName.trim().length > 0 &&
+    studentEmail.trim().length > 0 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail) &&
+    studentPhone.trim().length > 0 &&
+    /^[\d\s\-+()]{10,}$/.test(studentPhone.replace(/\s/g, '')) &&
+    (test?.student_detail_fields ?? []).every(field => !!extraDetails[field]?.trim())
+
   const handleDetailsSubmit = () => {
     if (!studentName.trim()) { setDetailsError('Please enter your name'); return }
     if (!studentEmail.trim()) { setDetailsError('Please enter your email'); return }
@@ -600,7 +610,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
                 <p className="text-sm" style={{ color: 'var(--tone-danger-ink)' }}>{detailsError || duplicateError}</p>
               </div>
             )}
-            <Button onClick={handleDetailsSubmit} className="w-full" size="lg">Continue</Button>
+            <Button onClick={handleDetailsSubmit} disabled={!isDetailsValid} className="w-full" size="lg">Continue</Button>
           </div>
         </div>
       </div>
