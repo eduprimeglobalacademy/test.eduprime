@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import { supabase } from '../../lib/supabase'
 import { buildSessionHandoffUrl } from '../../lib/auth'
 import { slugify, isValidSlug, isReservedSlug, orgUrl, ROOT_DOMAIN } from '../../lib/tenant'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 const DEFAULT_BRAND_COLOR = '#EA580C'
 
@@ -23,6 +24,8 @@ export function CreateOrganizationModal({ isOpen, onClose }: CreateOrganizationM
   const [logoUrl, setLogoUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEscapeKey(onClose, isOpen)
 
   if (!isOpen) return null
 

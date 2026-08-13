@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, User, Mail, Phone, Key, UserPlus } from 'lucide-react'
 import { signUpTeacher } from '../../lib/auth'
 import { useAuth } from '../../contexts/AuthContext'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { Button } from '../ui/Button'
 
 interface RegisterModalProps {
@@ -36,6 +37,8 @@ export function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))
+
+  useEscapeKey(onClose, isOpen)
 
   if (!isOpen) return null
 

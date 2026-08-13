@@ -18,6 +18,7 @@ import { OnboardingFlow } from './OnboardingFlow'
 import { EducatorAnalytics } from './EducatorAnalytics'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { PendingApprovals } from './PendingApprovals'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface TeacherToken {
   id: string; token: string; teacher_name: string; phone_number: string;
@@ -186,6 +187,8 @@ export function AdminDashboard() {
     if (tokenFilter === 'expired') return token.status === 'active' && new Date(token.expires_at) <= new Date()
     return true
   })
+
+  useEscapeKey(() => setMobileNavOpen(false), mobileNavOpen)
 
   if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
 

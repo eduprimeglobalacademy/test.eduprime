@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, Search, Trash2, Check } from 'lucide-react'
 import type { QuestionBankItem } from '../../lib/supabase'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { Button } from '../ui/Button'
 
 interface QuestionBankPickerProps {
@@ -14,6 +15,8 @@ interface QuestionBankPickerProps {
 export function QuestionBankPicker({ isOpen, items, onClose, onImport, onDelete }: QuestionBankPickerProps) {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<string[]>([])
+
+  useEscapeKey(onClose, isOpen)
 
   if (!isOpen) return null
 

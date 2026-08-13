@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Mail, Lock, LogIn } from 'lucide-react'
 import { signInWithEmail, signInWithGoogle } from '../../lib/auth'
 import { useAuth } from '../../contexts/AuthContext'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 
@@ -48,6 +49,8 @@ export function SignInModal({ isOpen, onClose }: SignInModalProps) {
       setGoogleLoading(false)
     }
   }
+
+  useEscapeKey(onClose, isOpen)
 
   if (!isOpen) return null
 

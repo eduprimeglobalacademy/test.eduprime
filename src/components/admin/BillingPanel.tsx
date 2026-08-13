@@ -11,6 +11,7 @@ import { LoadingSpinner } from '../ui/LoadingSpinner'
 import { OrgStatusBanner } from '../billing/OrgStatusBanner'
 import { CustomDomainCard } from './CustomDomainCard'
 import { planFeatureBullets } from '../../lib/plans'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface Invoice {
   id: string
@@ -277,6 +278,8 @@ export function BillingPanel() {
       setTogglingMetered(false)
     }
   }
+
+  useEscapeKey(() => setShowCancelConfirm(false), showCancelConfirm)
 
   if (loading) return <div className="py-16 flex justify-center"><LoadingSpinner size="lg" /></div>
 

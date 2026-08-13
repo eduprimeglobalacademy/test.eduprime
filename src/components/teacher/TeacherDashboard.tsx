@@ -25,6 +25,7 @@ import { FocusList } from './FocusList'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { useClasses } from '../../hooks/useClasses'
 import { useFocusItems } from '../../hooks/useFocusItems'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import type { Test, Teacher } from '../../lib/supabase'
 
 type ViewMode = 'dashboard' | 'classes' | 'class-detail' | 'class-settings' | 'assessments' | 'analytics' | 'focus' | 'settings' | 'preview' | 'reports' | 'author' | 'test-settings'
@@ -139,6 +140,8 @@ export function TeacherDashboard() {
     setViewMode(returnTo)
     fetchData()
   }
+
+  useEscapeKey(() => setMobileNavOpen(false), mobileNavOpen)
 
   if (loading) return <div className="min-h-screen bg-app flex items-center justify-center"><LoadingSpinner size="lg" /></div>
   if (viewMode === 'preview' && selectedTestId) return <TestPreview testId={selectedTestId} onBack={handleBackFromDetail} />
