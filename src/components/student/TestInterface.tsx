@@ -511,11 +511,11 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   const answered = questions.filter(isAnswered).length
 
   return (
-    <div className="theme-dark min-h-screen bg-app">
+    <div className="theme-dark min-h-screen bg-app flex flex-col">
       <TestWatermark text={`${studentName} · ${studentEmail}`} />
       {/* Header */}
       <header className="page-header">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <img src={orgLogo} alt={orgName} className="w-7 h-7 object-contain rounded-lg shrink-0" />
@@ -589,11 +589,9 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid lg:grid-cols-4 gap-6">
-          {/* Question nav (desktop) */}
-          <div className="hidden lg:block">
-            <div className="bg-surface rounded-2xl border border-app shadow-sm p-4 sticky top-24 space-y-4">
+      <div className="flex flex-1 min-h-0">
+        {/* Section/question nav — full-height sidebar, true left edge, same pattern as the teacher/admin dashboards' aside */}
+        <aside className="w-72 shrink-0 hidden lg:flex flex-col bg-app-outer border-r border-app-strong px-4 py-6 space-y-4 overflow-y-auto">
               {hasSections ? (
                 effectiveSections.map((sec, secIdx) => {
                   const isCurrentSection = secIdx === currentSectionIdx
@@ -603,7 +601,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
                       <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isCurrentSection ? 'text-[var(--brand-primary)]' : 'text-ink-faint'}`}>
                         {sec.title}{!canJumpHere ? ' (locked)' : ''}
                       </p>
-                      <div className="grid grid-cols-4 gap-1.5">
+                      <div className="grid grid-cols-5 gap-1.5">
                         {sec.questionIndices.map(i => (
                           <button
                             key={i}
@@ -635,7 +633,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
               ) : (
                 <div>
                   <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-3">Questions</p>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-5 gap-1.5">
                     {questions.map((_, i) => (
                       <button
                         key={i}
@@ -665,12 +663,12 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
                   <div className="h-1.5 bg-emerald-500 rounded-full transition-all" style={{ width: `${(answered / questions.length) * 100}%` }} />
                 </div>
               </div>
-            </div>
-          </div>
+        </aside>
 
-          {/* Question */}
-          <div className="lg:col-span-3">
-            <div className="bg-surface rounded-2xl border border-app shadow-sm p-6 sm:p-8">
+        {/* Question */}
+        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-8 overflow-y-auto">
+          <div className="bg-surface rounded-2xl border border-app shadow-sm p-6 sm:p-8">
+            <div className="max-w-2xl">
               <div className="flex items-start justify-between gap-4 mb-6">
                 <div>
                   <span className="text-xs font-semibold text-[var(--brand-primary)] uppercase tracking-wide">
@@ -741,6 +739,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
                   })}
                 </div>
               )}
+              </div>
 
               <div className="flex items-center justify-between mt-8 pt-6 border-t border-app">
                 <Button
@@ -799,9 +798,8 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
                   </Button>
                 )}
               </div>
-            </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   )

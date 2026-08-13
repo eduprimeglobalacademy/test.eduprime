@@ -62,51 +62,59 @@ export function TeacherSettings({ teacher, email, onTeacherUpdated }: TeacherSet
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-ink">Settings</h2>
         <p className="text-sm text-ink-faint">Manage your profile and account security</p>
       </div>
 
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          <User className="w-4 h-4 text-[var(--brand-primary)]" />Profile
-        </div>
-        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <Input label="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <Input label="Email" value={email} disabled helper="Contact your org admin to change your email" />
-        {profileError && <p className="text-sm text-red-600">{profileError}</p>}
-        <div className="flex items-center gap-3">
-          <Button onClick={saveProfile} loading={savingProfile} size="sm"><Save className="w-4 h-4" />Save Profile</Button>
-          {profileSaved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="w-4 h-4" />Saved</span>}
-        </div>
-      </div>
-
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          <Lock className="w-4 h-4 text-[var(--brand-primary)]" />Password
-        </div>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Input label="New password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" />
-          <Input label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-        </div>
-        {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
-        <div className="flex items-center gap-3">
-          <Button onClick={savePassword} loading={savingPassword} size="sm" disabled={!newPassword}><Save className="w-4 h-4" />Update Password</Button>
-          {passwordSaved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="w-4 h-4" />Updated</span>}
-        </div>
-      </div>
-
-      <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
-          <Link2 className="w-4 h-4 text-[var(--brand-primary)]" />Connected accounts
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-ink-soft font-medium">Google</p>
-            <p className="text-xs text-ink-faint">Sign in faster next time</p>
+      <div className="grid lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+              <User className="w-4 h-4 text-[var(--brand-primary)]" />Profile
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input label="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            <Input label="Email" value={email} disabled helper="Contact your org admin to change your email" />
+            {profileError && <p className="text-sm text-red-600">{profileError}</p>}
+            <div className="flex items-center gap-3">
+              <Button onClick={saveProfile} loading={savingProfile} size="sm"><Save className="w-4 h-4" />Save Profile</Button>
+              {profileSaved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="w-4 h-4" />Saved</span>}
+            </div>
           </div>
-          <ConnectGoogleButton />
+
+          <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+              <Lock className="w-4 h-4 text-[var(--brand-primary)]" />Password
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Input label="New password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" />
+              <Input label="Confirm password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+            </div>
+            {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
+            <div className="flex items-center gap-3">
+              <Button onClick={savePassword} loading={savingPassword} size="sm" disabled={!newPassword}><Save className="w-4 h-4" />Update Password</Button>
+              {passwordSaved && <span className="flex items-center gap-1 text-sm text-emerald-600"><Check className="w-4 h-4" />Updated</span>}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 sm:p-6 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+              <Link2 className="w-4 h-4 text-[var(--brand-primary)]" />Connected accounts
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-ink-soft font-medium">Google</p>
+                <p className="text-xs text-ink-faint">Sign in faster next time</p>
+              </div>
+              <ConnectGoogleButton />
+            </div>
+          </div>
         </div>
       </div>
     </div>

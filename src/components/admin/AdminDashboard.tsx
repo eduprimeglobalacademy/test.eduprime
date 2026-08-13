@@ -342,7 +342,7 @@ export function AdminDashboard() {
           )}
 
       {viewMode === 'billing' ? (
-        <div className="max-w-3xl">
+        <div>
           <div className="mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-ink">Billing</h2>
             <p className="text-ink-faint mt-1">Manage your organization's plan and subscription</p>
@@ -366,7 +366,7 @@ export function AdminDashboard() {
           {org && <PendingApprovals orgId={org.id} />}
         </div>
       ) : viewMode === 'branding' ? (
-        <div className="max-w-2xl">
+        <div className="max-w-4xl">
           <div className="mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-ink">Branding</h2>
             <p className="text-ink-faint mt-1">Your logo and colors — shown everywhere your students and educators see this platform</p>
