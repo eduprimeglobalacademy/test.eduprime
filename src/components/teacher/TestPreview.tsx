@@ -95,6 +95,15 @@ export function TestPreview({ testId, onBack }: TestPreviewProps) {
           </div>
         )}
 
+        {/* Stats — the full nav panel (jump-to-question grid + these same stats) is desktop-only
+            below; Prev/Next in the question card footer still works on mobile, but without this
+            strip the stats would be invisible below lg with no alternative at all. */}
+        <div className="lg:hidden flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-ink-faint bg-surface rounded-xl border border-app px-4 py-3 mb-6">
+          <span>Total Questions <span className="font-semibold text-ink">{questions.length}</span></span>
+          <span>Total Points <span className="font-semibold text-ink">{questions.reduce((s, q) => s + q.points, 0)}</span></span>
+          <span>Preview Answered <span className="font-semibold text-ink">{answered}</span></span>
+        </div>
+
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Nav */}
           <div className="hidden lg:block">
