@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle, XCircle, Hourglass, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatDateTime } from '../../lib/utils'
@@ -11,38 +12,46 @@ interface PendingTest extends Test {
 }
 
 export function PendingApprovals({ orgId }: { orgId: string }) {
-  const [tests, setTests] = useState<PendingTest[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const queryKey = ['pending-approvals', orgId]
   const [actingOn, setActingOn] = useState<string | null>(null)
 
-  useEffect(() => { fetchData() }, [orgId])
+  const { data: tests, isLoading } = useQuery({
+    queryKey,
+    queryFn: async (): Promise<PendingTest[]> => {
+      const { data: pending } = await supabase
+        .from('tests').select('*').eq('org_id', orgId).eq('status', 'pending_approval')
+        .order('created_at', { ascending: true })
 
-  const fetchData = async () => {
-    setLoading(true)
-    const { data: pending } = await supabase
-      .from('tests').select('*').eq('org_id', orgId).eq('status', 'pending_approval')
-      .order('created_at', { ascending: true })
+      const teacherIds = [...new Set((pending || []).map(t => t.teacher_id))]
+      const { data: teachers } = teacherIds.length
+        ? await supabase.from('teachers').select('id, name').in('id', teacherIds)
+        : { data: [] }
+      const nameById = new Map((teachers || []).map(t => [t.id, t.name]))
 
-    const teacherIds = [...new Set((pending || []).map(t => t.teacher_id))]
-    const { data: teachers } = teacherIds.length
-      ? await supabase.from('teachers').select('id, name').in('id', teacherIds)
-      : { data: [] }
-    const nameById = new Map((teachers || []).map(t => [t.id, t.name]))
+      return (pending || []).map(t => ({ ...t, teacherName: nameById.get(t.teacher_id) }))
+    },
+    enabled: !!orgId,
+  })
 
-    setTests((pending || []).map(t => ({ ...t, teacherName: nameById.get(t.teacher_id) })))
-    setLoading(false)
-  }
+  const decideMutation = useMutation({
+    mutationFn: async ({ testId, approve }: { testId: string; approve: boolean }) => {
+      await supabase.rpc('admin_decide_pending_test', { p_test_id: testId, p_approve: approve })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  })
 
   const decide = async (test: PendingTest, approve: boolean) => {
     setActingOn(test.id)
-    await supabase.rpc('admin_decide_pending_test', { p_test_id: test.id, p_approve: approve })
+    await decideMutation.mutateAsync({ testId: test.id, approve })
     setActingOn(null)
-    await fetchData()
   }
 
-  if (loading) return <div className="py-24 flex justify-center"><LoadingSpinner size="lg" /></div>
+  if (isLoading) return <div className="py-24 flex justify-center"><LoadingSpinner size="lg" /></div>
 
-  if (tests.length === 0) {
+  const testsList = tests ?? []
+
+  if (testsList.length === 0) {
     return (
       <div className="bg-surface rounded-2xl border border-app shadow-sm p-12 text-center">
         <Hourglass className="w-14 h-14 text-ink-muted mx-auto mb-4" />
@@ -54,7 +63,7 @@ export function PendingApprovals({ orgId }: { orgId: string }) {
 
   return (
     <div className="space-y-4">
-      {tests.map((test) => (
+      {testsList.map((test) => (
         <div key={test.id} className="bg-surface rounded-2xl border border-app shadow-sm p-5 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h3 className="font-semibold text-ink">{test.title}</h3>

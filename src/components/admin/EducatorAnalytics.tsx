@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Users, FileText, ClipboardCheck, TrendingUp, ChevronUp, ChevronDown } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { supabase } from '../../lib/supabase'
@@ -21,17 +22,18 @@ interface TeacherAnalytics {
 type SortKey = 'teacher_name' | 'total_tests' | 'total_attempts' | 'avg_score_pct' | 'last_activity_at'
 
 export function EducatorAnalytics({ orgId }: { orgId: string }) {
-  const [rows, setRows] = useState<TeacherAnalytics[]>([])
-  const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('total_tests')
   const [sortDesc, setSortDesc] = useState(true)
 
-  useEffect(() => {
-    supabase.rpc('org_teacher_analytics', { p_org_id: orgId }).then(({ data }) => {
-      setRows(data || [])
-      setLoading(false)
-    })
-  }, [orgId])
+  const { data, isLoading } = useQuery({
+    queryKey: ['org-teacher-analytics', orgId],
+    queryFn: async (): Promise<TeacherAnalytics[]> => {
+      const { data } = await supabase.rpc('org_teacher_analytics', { p_org_id: orgId })
+      return data ?? []
+    },
+    enabled: !!orgId,
+  })
+  const rows = data ?? []
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) { setSortDesc(d => !d); return }
@@ -69,7 +71,7 @@ export function EducatorAnalytics({ orgId }: { orgId: string }) {
     </th>
   )
 
-  if (loading) return <div className="py-24 flex justify-center"><LoadingSpinner size="lg" /></div>
+  if (isLoading) return <div className="py-24 flex justify-center"><LoadingSpinner size="lg" /></div>
 
   if (rows.length === 0) {
     return (

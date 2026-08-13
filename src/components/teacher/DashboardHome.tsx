@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Play, Clock, CheckCircle2, Copy, Calendar, BarChart3, Plus, Layers } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatDateTime } from '../../lib/utils'
@@ -27,21 +28,23 @@ export function DashboardHome({ tests, onGoToClasses, onCreateAssessment, onRepo
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 4)
 
-  const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({})
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (live.length === 0) return
-    let cancelled = false
-    ;(async () => {
-      const entries = await Promise.all(live.map(async (t) => {
-        const { count } = await supabase.from('test_attempts').select('id', { count: 'exact', head: true }).eq('test_id', t.id)
-        return [t.id, count || 0] as const
+  const liveTestIds = live.map(t => t.id)
+  const { data: submissionCounts } = useQuery({
+    queryKey: ['live-test-submission-counts', liveTestIds],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const entries = await Promise.all(liveTestIds.map(async (id) => {
+        const { count } = await supabase.from('test_attempts').select('id', { count: 'exact', head: true }).eq('test_id', id)
+        return [id, count || 0] as const
       }))
-      if (!cancelled) setSubmissionCounts(Object.fromEntries(entries))
-    })()
-    return () => { cancelled = true }
-  }, [live.map(t => t.id).join(',')])
+      return Object.fromEntries(entries)
+    },
+    enabled: liveTestIds.length > 0,
+    // Live submission counts are naturally volatile while a test is in
+    // progress — refresh more eagerly than the app-wide default.
+    staleTime: 10_000,
+  })
 
   const copyCode = (code: string, id: string) => {
     navigator.clipboard.writeText(code)
@@ -106,7 +109,7 @@ export function DashboardHome({ tests, onGoToClasses, onCreateAssessment, onRepo
                   </button>
                 </div>
                 {copiedId === t.id && <p className="text-xs text-emerald-600 -mt-2 mb-2">Copied!</p>}
-                <p className="text-xs text-ink-muted">{submissionCounts[t.id] ?? '…'} submission{submissionCounts[t.id] === 1 ? '' : 's'} so far</p>
+                <p className="text-xs text-ink-muted">{submissionCounts?.[t.id] ?? '…'} submission{submissionCounts?.[t.id] === 1 ? '' : 's'} so far</p>
               </div>
             ))}
           </div>

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { QuestionBankItem, QuestionBankOption, QuestionType } from '../lib/supabase'
 
@@ -29,32 +29,36 @@ export function useQuestionBank(teacherId: string | undefined) {
     enabled: !!teacherId,
   })
 
-  const saveToBank = async ({ teacherId, questionText, points, questionType, options }: SaveToBankInput) => {
-    const { data: item, error } = await supabase
-      .from('question_bank_items')
-      .insert([{ teacher_id: teacherId, question_text: questionText, points, question_type: questionType }])
-      .select().single()
-    if (error) throw error
+  const saveMutation = useMutation({
+    mutationFn: async ({ teacherId, questionText, points, questionType, options }: SaveToBankInput) => {
+      const { data: item, error } = await supabase
+        .from('question_bank_items')
+        .insert([{ teacher_id: teacherId, question_text: questionText, points, question_type: questionType }])
+        .select().single()
+      if (error) throw error
 
-    const { error: optError } = await supabase.from('question_bank_options').insert(
-      options.map(o => ({ bank_item_id: item.id, ...o }))
-    )
-    if (optError) throw optError
+      const { error: optError } = await supabase.from('question_bank_options').insert(
+        options.map(o => ({ bank_item_id: item.id, ...o }))
+      )
+      if (optError) throw optError
 
-    await queryClient.invalidateQueries({ queryKey })
-    return item as QuestionBankItem
-  }
+      return item as QuestionBankItem
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  })
 
-  const deleteFromBank = async (itemId: string) => {
-    await supabase.from('question_bank_items').delete().eq('id', itemId)
-    await queryClient.invalidateQueries({ queryKey })
-  }
+  const deleteMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      await supabase.from('question_bank_items').delete().eq('id', itemId)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  })
 
   return {
     items: items ?? [],
     loading: !teacherId ? false : isLoading,
-    saveToBank,
-    deleteFromBank,
+    saveToBank: saveMutation.mutateAsync,
+    deleteFromBank: deleteMutation.mutateAsync,
     refetch: () => queryClient.invalidateQueries({ queryKey }),
   }
 }

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
 export function useFocusItems(teacherId: string | undefined) {
@@ -18,43 +18,49 @@ export function useFocusItems(teacherId: string | undefined) {
     enabled: !!teacherId,
   })
 
-  const addStudentFocus = async (input: { email: string; name?: string; note?: string }) => {
-    if (!teacherId) throw new Error('Missing teacher')
-    const { error } = await supabase.from('teacher_focus').insert([{
-      teacher_id: teacherId,
-      kind: 'student',
-      student_email: input.email.trim(),
-      student_name: input.name?.trim() || null,
-      note: input.note?.trim() || null,
-    }])
-    if (error) throw error
-    await queryClient.invalidateQueries({ queryKey })
-  }
+  const addStudentMutation = useMutation({
+    mutationFn: async (input: { email: string; name?: string; note?: string }) => {
+      if (!teacherId) throw new Error('Missing teacher')
+      const { error } = await supabase.from('teacher_focus').insert([{
+        teacher_id: teacherId,
+        kind: 'student',
+        student_email: input.email.trim(),
+        student_name: input.name?.trim() || null,
+        note: input.note?.trim() || null,
+      }])
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  })
 
-  const addClassFocus = async (input: { classId: string; note?: string }) => {
-    if (!teacherId) throw new Error('Missing teacher')
-    const { error } = await supabase.from('teacher_focus').insert([{
-      teacher_id: teacherId,
-      kind: 'class',
-      class_id: input.classId,
-      note: input.note?.trim() || null,
-    }])
-    if (error) throw error
-    await queryClient.invalidateQueries({ queryKey })
-  }
+  const addClassMutation = useMutation({
+    mutationFn: async (input: { classId: string; note?: string }) => {
+      if (!teacherId) throw new Error('Missing teacher')
+      const { error } = await supabase.from('teacher_focus').insert([{
+        teacher_id: teacherId,
+        kind: 'class',
+        class_id: input.classId,
+        note: input.note?.trim() || null,
+      }])
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  })
 
-  const removeFocus = async (id: string) => {
-    const { error } = await supabase.from('teacher_focus').delete().eq('id', id)
-    if (error) throw error
-    await queryClient.invalidateQueries({ queryKey })
-  }
+  const removeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('teacher_focus').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+  })
 
   return {
     items: items ?? [],
     loading: !teacherId ? false : isLoading,
-    addStudentFocus,
-    addClassFocus,
-    removeFocus,
+    addStudentFocus: addStudentMutation.mutateAsync,
+    addClassFocus: addClassMutation.mutateAsync,
+    removeFocus: removeMutation.mutateAsync,
     refetch: () => queryClient.invalidateQueries({ queryKey }),
   }
 }
