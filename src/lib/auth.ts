@@ -1,16 +1,5 @@
 import { supabase } from './supabase'
-import { createClient } from '@supabase/supabase-js'
 import type { UserRole } from './supabase'
-
-// Create a service role client for admin operations (fallback to regular client if service key not available)
-const getServiceRoleClient = () => {
-  const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-  if (serviceRoleKey) {
-    return createClient(import.meta.env.VITE_SUPABASE_URL!, serviceRoleKey)
-  }
-  // Fallback to regular client if service role key is not available
-  return supabase
-}
 
 /**
  * Session handoff across a subdomain boundary — used right after org

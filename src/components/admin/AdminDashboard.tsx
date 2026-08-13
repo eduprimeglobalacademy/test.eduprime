@@ -63,17 +63,8 @@ export function AdminDashboard() {
       setTokens(tokensData || [])
 
       const { data: teachersData, error: teachersError } = await supabase.from('teachers').select('*').order('created_at', { ascending: false })
-      if (teachersError) {
-        const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-        if (serviceRoleKey) {
-          const { createClient } = await import('@supabase/supabase-js')
-          const sc = createClient(import.meta.env.VITE_SUPABASE_URL!, serviceRoleKey)
-          const { data: sd } = await sc.from('teachers').select('*')
-          setTeachers(sd || [])
-        }
-      } else {
-        setTeachers(teachersData || [])
-      }
+      if (teachersError) throw teachersError
+      setTeachers(teachersData || [])
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
