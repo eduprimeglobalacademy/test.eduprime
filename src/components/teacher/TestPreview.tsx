@@ -31,7 +31,7 @@ export function TestPreview({ testId, onBack }: TestPreviewProps) {
       setTest(testData)
       const { data: qData, error: qError } = await supabase.from('questions').select('*, question_options (*)').eq('test_id', testId).order('question_order')
       if (qError) throw qError
-      setQuestions(qData.map(q => ({ ...q, options: q.question_options.sort((a: any, b: any) => a.option_order - b.option_order) })))
+      setQuestions(qData.map(q => ({ ...q, options: q.question_options.sort((a: { option_order: number }, b: { option_order: number }) => a.option_order - b.option_order) })))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load test')
     } finally {

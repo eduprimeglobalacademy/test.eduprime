@@ -149,7 +149,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
         supabase.from('test_sections').select('*').eq('test_id', testData.id).order('section_order'),
       ])
       if (qError) throw qError
-      setQuestions(qData.map(q => ({ ...q, options: q.question_options.sort((a: any, b: any) => a.option_order - b.option_order) })))
+      setQuestions(qData.map(q => ({ ...q, options: q.question_options.sort((a: { option_order: number }, b: { option_order: number }) => a.option_order - b.option_order) })))
       setSections(secData || [])
       await resolveGate(testData)
     } catch (err) {

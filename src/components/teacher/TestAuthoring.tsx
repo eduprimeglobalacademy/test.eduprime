@@ -165,7 +165,7 @@ export function TestAuthoring({ testId: initialTestId, teacherId, initialClassId
       if (qError) throw qError
       setQuestions((qData || []).map((q: any) => ({
         ...q,
-        options: (q.question_options || []).sort((a: any, b: any) => a.option_order - b.option_order)
+        options: (q.question_options || []).sort((a: { option_order: number }, b: { option_order: number }) => a.option_order - b.option_order)
       })))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load questions')

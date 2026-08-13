@@ -33,7 +33,11 @@ export function formatDateTime(dateString: string): string {
   })
 }
 
-export function isTestActive(test: any): boolean {
+import type { Test, StudentAnswer } from './supabase'
+
+type TestSchedule = Pick<Test, 'start_time' | 'end_time' | 'status'>
+
+export function isTestActive(test: TestSchedule): boolean {
   const now = new Date()
   const startTime = test.start_time ? new Date(test.start_time) : null
   const endTime = test.end_time ? new Date(test.end_time) : null
@@ -43,7 +47,7 @@ export function isTestActive(test: any): boolean {
   return test.status === 'live'
 }
 
-export function getTestTimeStatus(test: any): 'not-started' | 'active' | 'ended' {
+export function getTestTimeStatus(test: TestSchedule): 'not-started' | 'active' | 'ended' {
   const now = new Date()
   const startTime = test.start_time ? new Date(test.start_time) : null
   const endTime = test.end_time ? new Date(test.end_time) : null
@@ -53,7 +57,10 @@ export function getTestTimeStatus(test: any): 'not-started' | 'active' | 'ended'
   return 'active'
 }
 
-export function calculateScore(answers: any[], questions: any[]): { score: number; maxScore: number } {
+export function calculateScore(
+  answers: Pick<StudentAnswer, 'question_id' | 'is_correct'>[],
+  questions: { id: string; points: number }[]
+): { score: number; maxScore: number } {
   let score = 0
   let maxScore = 0
 
@@ -68,13 +75,13 @@ export function calculateScore(answers: any[], questions: any[]): { score: numbe
   return { score, maxScore }
 }
 
-export function exportToCSV(data: any[], filename: string) {
+export function exportToCSV<T extends Record<string, unknown>>(data: T[], filename: string) {
   if (data.length === 0) return
 
   const headers = Object.keys(data[0])
   const csvContent = [
     headers.join(','),
-    ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
+    ...data.map(row => headers.map(header => `"${row[header] ?? ''}"`).join(','))
   ].join('\n')
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
