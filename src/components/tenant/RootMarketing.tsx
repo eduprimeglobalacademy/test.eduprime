@@ -54,7 +54,10 @@ export function RootMarketing() {
           <button onClick={() => setShowSignIn(true)} className="text-ink hover:text-[var(--brand-primary)] transition-colors">Log in</button>
           <Button onClick={() => setShowCreate(true)}>Start free trial</Button>
         </div>
-        <Button size="sm" className="md:hidden" onClick={() => setShowCreate(true)}>Start trial</Button>
+        <div className="flex items-center gap-3 md:hidden">
+          <button onClick={() => setShowSignIn(true)} className="text-sm font-semibold text-ink-soft hover:text-ink transition-colors">Log in</button>
+          <Button size="sm" onClick={() => setShowCreate(true)}>Start trial</Button>
+        </div>
       </div>
 
       {/* Hero */}
