@@ -41,7 +41,15 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  // Reserved for genuinely fatal, page-level failures (test not found/not
+  // active/failed to load) — anything that sets this takes over the whole
+  // screen (see the `if (error) return` below). Form validation and a
+  // failed final-submit attempt are NOT that: they need to leave the
+  // student's in-progress form/answers on screen, so they get their own
+  // state instead of sharing this one.
   const [error, setError] = useState('')
+  const [detailsError, setDetailsError] = useState('')
+  const [submitError, setSubmitError] = useState('')
   const [studentName, setStudentName] = useState('')
   const [studentEmail, setStudentEmail] = useState('')
   const [studentPhone, setStudentPhone] = useState('')
@@ -203,12 +211,12 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
   }
 
   const handleDetailsSubmit = () => {
-    if (!studentName.trim()) { setError('Please enter your name'); return }
-    if (!studentEmail.trim()) { setError('Please enter your email'); return }
-    if (!studentPhone.trim()) { setError('Please enter your phone number'); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) { setError('Please enter a valid email'); return }
-    if (!/^[\d\s\-+()]{10,}$/.test(studentPhone.replace(/\s/g, ''))) { setError('Please enter a valid phone number'); return }
-    setError('')
+    if (!studentName.trim()) { setDetailsError('Please enter your name'); return }
+    if (!studentEmail.trim()) { setDetailsError('Please enter your email'); return }
+    if (!studentPhone.trim()) { setDetailsError('Please enter your phone number'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) { setDetailsError('Please enter a valid email'); return }
+    if (!/^[\d\s\-+()]{10,}$/.test(studentPhone.replace(/\s/g, ''))) { setDetailsError('Please enter a valid phone number'); return }
+    setDetailsError('')
     checkDuplicate()
   }
 
@@ -351,7 +359,7 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
       })
     } catch (err) {
       console.error('Submit error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to submit test')
+      setSubmitError(err instanceof Error ? err.message : 'Failed to submit test')
       setPhase('test')
     }
   }
@@ -430,9 +438,9 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
               <label className="block text-sm font-medium text-ink-soft mb-1.5">Phone Number *</label>
               <input type="tel" value={studentPhone} onChange={e => setStudentPhone(e.target.value)} className="input-base" placeholder="Enter your phone number" />
             </div>
-            {(error || duplicateError) && (
+            {(detailsError || duplicateError) && (
               <div className="p-3 rounded-xl" style={{ background: 'var(--tone-danger-bg)' }}>
-                <p className="text-sm" style={{ color: 'var(--tone-danger-ink)' }}>{error || duplicateError}</p>
+                <p className="text-sm" style={{ color: 'var(--tone-danger-ink)' }}>{detailsError || duplicateError}</p>
               </div>
             )}
             <Button onClick={handleDetailsSubmit} className="w-full" size="lg">Continue</Button>
@@ -755,6 +763,12 @@ export function TestInterface({ testCode, orgId, onComplete }: TestInterfaceProp
                 </div>
               )}
               </div>
+
+              {submitError && (
+                <div className="mt-6 p-3 rounded-xl" style={{ background: 'var(--tone-danger-bg)' }}>
+                  <p className="text-sm" style={{ color: 'var(--tone-danger-ink)' }}>{submitError}</p>
+                </div>
+              )}
 
               <div className="flex items-center justify-between mt-8 pt-6 border-t border-app">
                 <Button
